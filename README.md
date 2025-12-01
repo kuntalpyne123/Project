@@ -10,7 +10,7 @@
 8. Save the newly created gemini API key onto your system;s environment variables. (Crucial)
 
 ## App Usage:
-1. Open the app link.
+1. Open the app link - (https://goodbuy-guide.streamlit.app/)
 2. Paste your generated GEMINI API KEY (or an existing one if you already have one).
 3. Go ahead use the App.
 
