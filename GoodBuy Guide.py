@@ -71,7 +71,7 @@ except Exception as e:
     st.error(f"Client Init Error: {e}")
     st.stop()
 
-MODEL_ID = "gemini-2.5-flash"
+MODEL_ID = "gemini-2.5-pro"
 
 # --- SESSION STATE INITIALIZATION ---
 if "research_data" not in st.session_state:
