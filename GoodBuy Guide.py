@@ -1,8 +1,8 @@
 import streamlit as st
 import os
-import time
-import random
-from streamlit.errors import StreamlitAPIException
+import sqlite3
+from datetime import datetime
+from streamlit.web.server.websocket_headers import _get_websocket_headers
 
 # --- LIBRARY IMPORTS ---
 try:
@@ -10,24 +10,89 @@ try:
     from google.genai.types import GenerateContentConfig, Tool, GoogleSearch
 except ImportError:
     pass
-
 try:
     import openai
 except ImportError:
     pass
-
 try:
     import anthropic
 except ImportError:
     pass
-
 try:
     from duckduckgo_search import DDGS
 except ImportError:
     pass
 
 # ===========================
-# 1. CONFIGURATION & SETUP
+# 1. PERSISTENT USAGE TRACKING (SQLite)
+# ===========================
+
+DB_FILE = "user_quotas.db"
+FREE_USAGE_LIMIT = 5
+
+def init_db():
+    """Initialize the SQLite database to track usage by IP."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS usage (
+            ip_address TEXT PRIMARY KEY,
+            count INTEGER,
+            last_access TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def get_remote_ip():
+    """Attempt to get the client's real IP address from Streamlit headers."""
+    try:
+        headers = _get_websocket_headers()
+        if headers is None:
+            return "127.0.0.1"
+        # X-Forwarded-For is standard for proxies (like Streamlit Cloud)
+        x_forwarded_for = headers.get("X-Forwarded-For")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0]
+        return "unknown_ip"
+    except Exception:
+        return "unknown_ip"
+
+def get_usage_count(ip):
+    """Fetch current usage count for an IP."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT count FROM usage WHERE ip_address=?", (ip,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else 0
+
+def increment_usage(ip):
+    """Increment the usage count for an IP."""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    # Check if exists
+    c.execute("SELECT count FROM usage WHERE ip_address=?", (ip,))
+    result = c.fetchone()
+    
+    current_time = datetime.now().isoformat()
+    
+    if result:
+        new_count = result[0] + 1
+        c.execute("UPDATE usage SET count=?, last_access=? WHERE ip_address=?", (new_count, current_time, ip))
+    else:
+        new_count = 1
+        c.execute("INSERT INTO usage (ip_address, count, last_access) VALUES (?, ?, ?)", (ip, 1, current_time))
+    
+    conn.commit()
+    conn.close()
+    return new_count
+
+# Initialize DB on app load
+init_db()
+
+# ===========================
+# 2. CONFIGURATION & SETUP
 # ===========================
 
 st.set_page_config(page_title="Product IQ: Agentic Shopper", page_icon="🛍️", layout="wide")
@@ -60,14 +125,9 @@ if "research_data" not in st.session_state: st.session_state.research_data = Non
 if "general_report" not in st.session_state: st.session_state.general_report = None
 if "messages" not in st.session_state: st.session_state.messages = []
 if "product_name" not in st.session_state: st.session_state.product_name = ""
-# Usage Counter for Rate Limiting
-if "usage_count" not in st.session_state: st.session_state.usage_count = 0
-
-# Rate Limit Constant
-FREE_USAGE_LIMIT = 5 
 
 # ===========================
-# 2. SIDEBAR CONFIGURATION
+# 3. SIDEBAR CONFIGURATION
 # ===========================
 
 with st.sidebar:
@@ -93,19 +153,22 @@ with st.sidebar:
         key_source = st.radio(
             "API Key Source:", 
             ("Use Free Default Key", "Enter My Own Key"),
-            help="Default key is limited to 5 requests per session to prevent quota exhaustion."
+            help="Default key is limited to 5 requests per IP address to prevent quota exhaustion."
         )
 
         if key_source == "Use Free Default Key":
             using_free_key = True # Enable Rate Limiting
             
-            # Show Usage Progress
-            usage_left = FREE_USAGE_LIMIT - st.session_state.usage_count
-            st.progress(min(st.session_state.usage_count / FREE_USAGE_LIMIT, 1.0), 
-                        text=f"Free Quota: {st.session_state.usage_count}/{FREE_USAGE_LIMIT} used")
+            # --- GET IP & SHOW USAGE ---
+            user_ip = get_remote_ip()
+            current_usage = get_usage_count(user_ip)
+            usage_left = FREE_USAGE_LIMIT - current_usage
+            
+            st.progress(min(current_usage / FREE_USAGE_LIMIT, 1.0), 
+                        text=f"Free Quota (IP Tracked): {current_usage}/{FREE_USAGE_LIMIT} used")
             
             if usage_left <= 0:
-                st.error("🚫 Session Quota Exceeded. Please enter your own API Key.")
+                st.error("🚫 IP Limit Exceeded. Please enter your own API Key to continue.")
             
             try:
                 if "GEMINI_API_KEY" in st.secrets:
@@ -152,11 +215,10 @@ with st.sidebar:
             except Exception as e: st.error(f"Anthropic Error: {e}")
 
 # ===========================
-# 3. WEB SEARCH BRIDGE
+# 4. WEB SEARCH BRIDGE
 # ===========================
 
 def search_web_duckduckgo(query, max_results=5):
-    """Fetches live search results using DuckDuckGo (Free)."""
     try:
         results = DDGS().text(query, max_results=max_results)
         return "\n".join([f"- {r['title']}: {r['body']} (Source: {r['href']})" for r in results])
@@ -164,12 +226,10 @@ def search_web_duckduckgo(query, max_results=5):
         return f"Search failed: {str(e)}"
 
 # ===========================
-# 4. UNIFIED LLM WRAPPER
+# 5. UNIFIED LLM WRAPPER
 # ===========================
 
 def call_llm(system_instruction, user_prompt, use_search=False, search_query=None):
-    """Unified function for Gemini, OpenAI, and Claude."""
-    
     if not client:
         return "Error: Client not initialized. Check API Key."
 
@@ -204,10 +264,9 @@ def call_llm(system_instruction, user_prompt, use_search=False, search_query=Non
         except Exception as e: return f"Claude Error: {e}"
 
 # ===========================
-# 5. AGENT PERSONAS (From Product Assistance Model)
+# 6. AGENT PERSONAS
 # ===========================
 
-# --- Agent 1: The Deep Hunter (Research) ---
 RESEARCHER_INSTRUCTION = """
 ROLE: You are the \"Product Intelligence Engine\". You do not just search; you investigate.
 GOAL: Gather deep, conflict-aware data for {product_name} AND its top 3 competitors.
@@ -224,7 +283,6 @@ OUTPUT:
 Raw, detailed, unsummarized notes. Cite every claim.
 """
 
-# --- Agent 2: The Unbiased Analyst (General Report) ---
 EDITOR_INSTRUCTION = """
 ROLE: You are the \"Transparent Shopping Consultant\". You hate industry jargon and sponsored bias.
 GOAL: Create a robust, easy-to-read Master Report for {product_name}.
@@ -249,7 +307,6 @@ STRUCTURE & RULES:
 OUTPUT FORMAT: Clean Markdown.
 """
 
-# --- Agent 3: The Personalizer (User Profile) ---
 PERSONALIZER_INSTRUCTION = """
 ROLE: You are a hyper-personalized Sales Engineer.
 GOAL: Re-evaluate {product_name} specifically for the USER'S PROFILE.
@@ -268,7 +325,7 @@ OUTPUT: A short, punchy personal letter to the user.
 """
 
 # ===========================
-# 6. APP LOGIC
+# 7. APP LOGIC
 # ===========================
 
 def run_research(product_name):
@@ -280,9 +337,7 @@ def run_research(product_name):
     - Check for fake review patterns.
     - Get sales trends and availability status.
     """
-    # DuckDuckGo query for non-Gemini models
     search_query = f"{product_name} reviews vs competitors reliability issues 2025"
-    
     return call_llm(instruction, prompt, use_search=True, search_query=search_query)
 
 def generate_report(product_name, research_data):
@@ -294,15 +349,13 @@ def generate_personal_rec(product_name, research_data, user_profile):
     instruction = PERSONALIZER_INSTRUCTION.format(product_name=product_name)
     prompt = f"""
     Research Data: {research_data}
-
     User Profile: {user_profile}
-
     Generate a personalized recommendation letter.
     """
     return call_llm(instruction, prompt)
 
 # ===========================
-# 7. APP INTERFACE
+# 8. APP INTERFACE
 # ===========================
 
 st.title("🛍️ Product IQ: Agentic Shopper")
@@ -315,11 +368,15 @@ with st.form("research_form"):
     submitted = st.form_submit_button("🔎 Show Me the Truth")
 
 if submitted and product_input:
-    # --- RATE LIMIT CHECK ---
-    if using_free_key and st.session_state.usage_count >= FREE_USAGE_LIMIT:
-        st.error(f"🛑 Free Usage Limit Reached ({FREE_USAGE_LIMIT}/{FREE_USAGE_LIMIT}).")
-        st.warning("To continue using the app, please select 'Enter My Own Key' in the sidebar and provide your own Gemini API Key (it's free!).")
-        st.stop() # Halt execution
+    # --- RATE LIMIT CHECK (DATABASE BASED) ---
+    if using_free_key:
+        user_ip = get_remote_ip()
+        current_usage = get_usage_count(user_ip)
+        
+        if current_usage >= FREE_USAGE_LIMIT:
+            st.error(f"🛑 Free Usage Limit Reached for IP {user_ip} ({FREE_USAGE_LIMIT}/{FREE_USAGE_LIMIT}).")
+            st.warning("To continue, please select 'Enter My Own Key' in the sidebar.")
+            st.stop() # Halt execution
     
     # --- CHECK MISSING KEY ---
     if not api_key:
@@ -343,10 +400,10 @@ if submitted and product_input:
         report_text = generate_report(product_input, research_data)
         st.session_state.general_report = report_text
         
-        # --- INCREMENT USAGE COUNTER (Only if successful) ---
+        # --- INCREMENT USAGE COUNTER (DATABASE) ---
         if using_free_key:
-            st.session_state.usage_count += 1
-            st.toast(f"Free Quota Used: {st.session_state.usage_count}/{FREE_USAGE_LIMIT}")
+            new_count = increment_usage(user_ip)
+            st.toast(f"Free Quota Used: {new_count}/{FREE_USAGE_LIMIT}")
         
         status.update(label="✅ Analysis Complete!", state="complete", expanded=False)
         
@@ -377,8 +434,7 @@ if st.session_state.general_report:
         st.markdown("#### Tell us about yourself")
         user_profile = st.text_area(
             "Type in", 
-            placeholder="e.g. 'I am a student on a budget, I need this for coding and light gaming. I hate heavy laptops. I want it to last 4 years.'",
-            help="The more details, the better the AI can simulate ownership for you."
+            placeholder="e.g. 'I am a student on a budget...'",
         )
 
         if st.button("✨ Generate My Personal Verdict"):
@@ -406,11 +462,9 @@ if st.session_state.general_report:
             st.markdown(message["content"])
 
     if prompt := st.chat_input("Ask about maintenance, rivals, or specific specs..."):
-        # Add user message
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.markdown(prompt)
         
-        # Generate Agent Response
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 resp = call_llm(
