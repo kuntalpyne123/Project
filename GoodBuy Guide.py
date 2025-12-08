@@ -45,18 +45,20 @@ def init_db():
     conn.close()
 
 def get_remote_ip():
-    """Attempt to get the client's real IP address from Streamlit headers."""
+    """
+    Robust IP detection that works on Localhost and Deployed Cloud.
+    """
     try:
-        headers = _get_websocket_headers()
-        if headers is None:
-            return "127.0.0.1"
-        # X-Forwarded-For is standard for proxies (like Streamlit Cloud)
-        x_forwarded_for = headers.get("X-Forwarded-For")
-        if x_forwarded_for:
-            return x_forwarded_for.split(",")[0]
-        return "unknown_ip"
+        headers = _get_websocket_headers()  
+       # 1. If running on Streamlit Cloud or behind a proxy
+        if headers and "X-Forwarded-For" in headers:
+            return headers["X-Forwarded-For"].split(",")[0]
+        # 2. If running on Localhost (No X-Forwarded-For header exists)
+        # We return a static string so the DB knows it's the SAME local machine.
+        return "LOCALHOST_DEV_MACHINE" 
     except Exception:
-        return "unknown_ip"
+        # Fallback for safety
+        return "UNKNOWN_CLIENT"
 
 def get_usage_count(ip):
     """Fetch current usage count for an IP."""
@@ -153,23 +155,27 @@ with st.sidebar:
         key_source = st.radio(
             "API Key Source:", 
             ("Use Free Default Key", "Enter My Own Key"),
-            help="Default key is limited to 5 requests per IP address to prevent quota exhaustion."
+            help="Default key is limited to 5 requests per IP address."
         )
 
         if key_source == "Use Free Default Key":
-            using_free_key = True # Enable Rate Limiting
+            using_free_key = True 
             
             # --- GET IP & SHOW USAGE ---
             user_ip = get_remote_ip()
             current_usage = get_usage_count(user_ip)
+            
+            # DEBUGGER: Shows you what the App sees. 
+            # If this says "LOCALHOST_DEV_MACHINE", it is working correctly.
+            st.caption(f"🔒 ID: {user_ip}") 
+            
             usage_left = FREE_USAGE_LIMIT - current_usage
             
+            # Progress bar calculation
             st.progress(min(current_usage / FREE_USAGE_LIMIT, 1.0), 
-                        text=f"Free Quota (IP Tracked): {current_usage}/{FREE_USAGE_LIMIT} used")
-            
+                        text=f"Quota: {current_usage}/{FREE_USAGE_LIMIT} used")
             if usage_left <= 0:
-                st.error("🚫 IP Limit Exceeded. Please enter your own API Key to continue.")
-            
+                st.error("🚫 Quota Exceeded. Please enter your own API Key.")  
             try:
                 if "GEMINI_API_KEY" in st.secrets:
                     api_key = st.secrets["GEMINI_API_KEY"]
