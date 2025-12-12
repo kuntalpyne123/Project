@@ -443,8 +443,8 @@ if st.session_state.general_report:
     # --- PERSONALIZATION SECTION ---
     st.markdown("## 👤 The Private Investigator")
     with st.container(border=True):
-        st.markdown("#### Tell us a bit about yourself")
-        st.caption("Let's see if this product is the RIGHT CHoice for YOU")
+        st.markdown("#### Let's see if this product is the RIGHT CHoice for YOU")
+        st.caption("Tell us a bit about yourself")
         
         user_profile = st.text_area("Profile", placeholder="e.g. 'I commute 2 hours a day, love bass-heavy music, but have a strict budget of $200...'")
 
