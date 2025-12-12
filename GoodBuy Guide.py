@@ -353,7 +353,7 @@ st.caption(f"Powered by **{provider} ({model_id})**")
 
 # --- PHASE 1: INPUT (UPDATED LAYOUT) ---
 with st.container(border=True):
-    # Layout: [      Text Input (85%)      ] [ 📷 ] [ 🚀 ]
+    # Layout: [      Text Input (85%)      ] [ 📸 ] [ ⏩ ]
     col_input, col_attach, col_run = st.columns([0.85, 0.05, 0.1], vertical_alignment="bottom")
     
     with col_input:
