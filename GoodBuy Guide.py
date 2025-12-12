@@ -122,13 +122,11 @@ with st.sidebar:
         else: model_id = "gemini-3-pro-preview"
 
     elif provider == "OpenAI (ChatGPT)":
-        # --- RESTORED CONFIRMATION ---
         st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter OpenAI API Key", type="password")
         model_id = st.selectbox("Select Model:", ("gpt-4o", "gpt-4o-mini"))
 
     elif provider == "Anthropic (Claude)":
-        # --- RESTORED CONFIRMATION ---
         st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter Anthropic API Key", type="password")
         model_id = st.selectbox("Select Model:", ("claude-3-5-sonnet-20241022", "claude-3-opus-20240229"))
@@ -195,22 +193,17 @@ def call_llm(system_instruction, user_prompt, use_search=False, search_query=Non
 # 5. INTELLIGENT AGENTS
 # ===========================
 
-# --- VISION AGENT WITH SELF-CORRECTION ---
+# --- VISION AGENT ---
 def identify_product_from_image(image):
     instruction = "You are a Tech Hardware Forensic Expert."
-    
     prompt = """
     Identify this product.
-    
-    INTERNAL DEBATE (Self-Correction):
-    1. Does it look like a budget phone (A-series) or a flagship (S-series/Edge)?
-    2. LOOK CLOSER: Check the frame material (Plastic vs Metal). Check the bezel thickness.
-    3. IF UNSURE: It is better to admit ambiguity than to guess the cheap model.
-    
+    INTERNAL DEBATE:
+    1. Does it look like a budget phone or a flagship? Check materials.
+    2. IF UNSURE: Admit ambiguity.
     OUTPUT RULES:
-    1. If the product resembles multiple versions (e.g. S24 vs S25, or A55 vs S24), output STRICTLY: "Product A vs Product B".
+    1. If ambiguous (e.g. S24 vs S25), output STRICTLY: "Product A vs Product B".
     2. Otherwise, return the exact Product Name.
-    3. No filler words.
     """
     return call_llm(instruction, prompt, image_data=image)
 
@@ -218,19 +211,9 @@ def identify_product_from_image(image):
 RESEARCHER_INSTRUCTION = """
 ROLE: Product Intelligence Engine.
 GOAL: Investigate {product_name}. 
-
-AMBIGUITY PROTOCOL:
-If {product_name} contains "vs" or "or":
-1. PERFORM COMPARATIVE ANALYSIS.
-2. Investigate BOTH products mentioned.
-3. Highlight key differences (Price, Specs, Issues).
-
-MANDATORY:
-1. Sales/Market Status.
-2. Reliability & "Hidden Gotchas" (Repairs/Fees).
-3. Fake Review Check.
-4. Competitors (if not already comparing).
-OUTPUT: Raw, detailed notes.
+AMBIGUITY PROTOCOL: If {product_name} contains "vs", PERFORM COMPARATIVE ANALYSIS.
+MANDATORY: Sales Status, Reliability, Hidden Costs, Fake Reviews, Competitors.
+OUTPUT: Raw notes.
 """
 
 def run_research(product_name):
@@ -243,20 +226,29 @@ def run_research(product_name):
 EDITOR_INSTRUCTION = """
 ROLE: Transparent Shopping Consultant.
 GOAL: Master Report for {product_name}.
-
 STRUCTURE:
-1. **Visuals:** .
-2. **Ambiguity Handling:** If input is "A vs B", start with a "Visual Identification Crisis" table comparing them.
-3. **Verdict:** "The Main Pick", "Budget Alt", "Performance Upgrade".
-4. **Reliability:** "Life after 1 year".
-5. **Transparency:** State conflicting data.
-
+1. Visuals.
+2. Ambiguity Handling: If "A vs B", create "Visual Identification Crisis" table.
+3. Verdict & Reliability.
 OUTPUT: Markdown.
 """
 
 def generate_report(product_name, research_data):
     instruction = EDITOR_INSTRUCTION.format(product_name=product_name)
     prompt = f"Research Data:\n{research_data}\n\nGenerate Guide."
+    return call_llm(instruction, prompt)
+
+# --- PERSONALIZER AGENT (RESTORED) ---
+PERSONALIZER_INSTRUCTION = """
+ROLE: You are a hyper-personalized Sales Engineer.
+GOAL: Re-evaluate {product_name} specifically for the USER'S PROFILE.
+TASK: Match/Mismatch analysis.
+OUTPUT: A short, punchy personal letter to the user.
+"""
+
+def generate_personal_rec(product_name, research_data, user_profile):
+    instruction = PERSONALIZER_INSTRUCTION.format(product_name=product_name)
+    prompt = f"Research Data: {research_data}\nUser Profile: {user_profile}\nGenerate a personalized recommendation letter."
     return call_llm(instruction, prompt)
 
 # ===========================
@@ -271,7 +263,6 @@ with st.container(border=True):
     with col1: text_input = st.text_input("Type Product Name", placeholder="e.g. Dyson Airwrap")
     with col2: image_input = st.file_uploader("Or Upload Image", type=["jpg", "png", "jpeg"])
     
-    # ONE CLICK ACTION
     start_btn = st.button("🚀 Analyze Product", type="primary")
 
 # --- MAIN LOGIC ---
@@ -280,23 +271,20 @@ if start_btn:
         st.error("🔑 API Key missing.")
         st.stop()
     
-    # 1. Reset & Start
+    # Reset
     st.session_state.general_report = None
     st.session_state.messages = []
     
     status = st.status("🕵️ Agentic Workflow Started...", expanded=True)
     
     try:
-        # 2. Identification (Text or Image)
+        # Identification
         if image_input:
-            status.write("📸 **Vision Agent:** Analyzing materials & design language...")
+            status.write("📸 **Vision Agent:** Analyzing materials & design...")
             image = Image.open(image_input)
             st.session_state.image_obj = image
-            
-            # AI Guess
             identified_name = identify_product_from_image(image).strip()
             
-            # Logic: If ambiguity ("vs"), the system is designed to handle it.
             if " vs " in identified_name.lower():
                 status.write(f"🤔 **Ambiguity Detected:** Resembles {identified_name}. Switching to Comparative Mode.")
             else:
@@ -310,17 +298,16 @@ if start_btn:
             
         st.session_state.product_name = identified_name
 
-        # 3. Research (Automated)
+        # Research
         status.write(f"🌍 **Research Agent:** Scouring web for '{identified_name}'...")
         data = run_research(identified_name)
         st.session_state.research_data = data
         
-        # 4. Report (Automated)
+        # Report
         status.write("📊 **Editorial Agent:** Compiling Master Guide...")
         report = generate_report(identified_name, data)
         st.session_state.general_report = report
         
-        # 5. Usage
         if using_free_key: increment_usage(get_remote_ip())
         
         status.update(label="✅ Analysis Complete!", state="complete", expanded=False)
@@ -329,22 +316,18 @@ if start_btn:
         status.update(label="❌ Error", state="error")
         st.error(f"System Error: {e}")
 
-# --- RESULT DISPLAY & CORRECTION UI ---
+# --- RESULT DISPLAY ---
 if st.session_state.general_report:
     st.divider()
     
-    # --- HEADER WITH CORRECTION WIDGET ---
-    # This is the "Escape Hatch" for hallucinations without breaking automation
+    # Header & Correction Widget
     c1, c2 = st.columns([3, 1])
-    with c1:
-        st.subheader(f"Analysis for: {st.session_state.product_name}")
+    with c1: st.subheader(f"Analysis for: {st.session_state.product_name}")
     with c2:
-        # If the AI got it wrong, the user can fix it HERE and RERUN
         with st.popover("Wrong Product?"):
             new_name = st.text_input("Correct Name:")
             if st.button("🔄 Retry Analysis"):
                 st.session_state.product_name = new_name
-                # Trigger rerun logic manually by clearing report and rerunning research
                 with st.spinner(f"Correction: Analyzing {new_name}..."):
                     data = run_research(new_name)
                     st.session_state.research_data = data
@@ -355,7 +338,7 @@ if st.session_state.general_report:
     if "image_obj" in st.session_state:
         st.image(st.session_state.image_obj, width=150)
 
-    # REPORT
+    # Report Display
     st.markdown(st.session_state.general_report)
     
     with st.expander("🔍 Raw Intelligence"):
@@ -363,7 +346,26 @@ if st.session_state.general_report:
     
     st.divider()
     
-    # PERSONALIZATION & CHAT (Standard)
+    # --- PERSONALIZATION SECTION (RESTORED) ---
+    st.markdown("## 👤 The Private Investigator")
+    with st.container(border=True):
+        st.markdown("#### Tell us about yourself")
+        st.caption("We'll re-read the research specifically for YOUR lifestyle.")
+        
+        user_profile = st.text_area("Profile", placeholder="e.g. 'I commute 2 hours a day and wear glasses...'")
+
+        if st.button("✨ Generate My Personal Verdict"):
+            if not user_profile:
+                st.warning("Please tell us a little about yourself first.")
+            else:
+                with st.spinner("🤖 Simulating ownership experience..."):
+                    rec = generate_personal_rec(st.session_state.product_name, st.session_state.research_data, user_profile)
+                    st.markdown("### 💌 Your Personal Verdict")
+                    st.markdown(rec)
+
+    st.divider()
+    
+    # --- CHAT SECTION ---
     st.markdown("### 💬 Ask about this product")
     if prompt := st.chat_input("Ask me anything..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
