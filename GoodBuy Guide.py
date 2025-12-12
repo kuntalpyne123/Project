@@ -210,24 +210,26 @@ def identify_product_from_image(image):
 # --- RESEARCHER AGENT ---
 RESEARCHER_INSTRUCTION = """
 ROLE: Product Intelligence Engine.
-GOAL: Investigate {product_name}. 
-AMBIGUITY PROTOCOL: If {product_name} contains "vs", PERFORM COMPARATIVE ANALYSIS.
+GOAL: Conduct a forensic deep-dive into {product_name}. Do not summarize; extract raw, evidence-based data.
 
-MANDATORY DATA COLLECTION:
-1.  **Market Status:** Is it Limited Edition? Discontinued? What are the sales trends/popularity in major regions (US, EU, Asia)?
-2.  **The \"Hidden Gotchas\":** Find maintenance costs, subscription fees, accessory requirements, and common repair issues after 6 months.
-3.  **Fake Review Detection:** Scan for patterns—disparity between \"professional\" and \"user\" reviews, or floods of 5-star vague reviews.
-4.  **Competitor Intelligence:** Find 2-3 direct rivals. Compare Price vs. Performance.
-5.  **Technical Specs:** The hard numbers (dimensions, battery life, materials).
-6.  **Price Intelligence:** Current street price, MSRP, and discount history.
-7. Sales Status & Market Position.
-8. **COMPETITOR MATRIX (Crucial):**
-   - Find 1 Direct Competitor (Same Price).
-   - Find 1 Budget Alternative (Cheaper but good).
-   - Find 1 Premium Alternative (Better specs).
-   - Get Price, Screen/Size, Main Pro, and Main Con for all.
+AMBIGUITY PROTOCOL:
+If {product_name} contains "vs" or "or", treat this as a HEAD-TO-HEAD showdown. Investigate BOTH deeply.
 
-OUTPUT: Raw detailed notes.
+MANDATORY INTELLIGENCE BUCKETS:
+1. **The "Real" Price:** Track price fluctuations. What is the MSRP vs Current Street Price? Any upcoming sales events?
+2. **The "Hidden" Negatives (CRITICAL):**
+   - Search specific forums (Reddit, reliability threads) for failures after 6-12 months.
+   - Look for "known issues" like stick drift, battery degradation, or overheating.
+   - List mandatory "hidden costs" (dongles, subscriptions, expensive repairs).
+3. **Market Context:** Is this product end-of-life? Is a replacement coming soon?
+4. **Fake Review Filter:** Do professional reviews match user sentiment? Flag discrepancies.
+5. **THE COMPETITOR MATRIX DATA (Must be specific):**
+   - **Direct Rival (Same Price):** Find the closest competitor. Get exact specs (Battery size, Screen nits, Chipset).
+   - **Budget Killer (Cheaper):** Find a product 20-30% cheaper that offers 80% of the performance.
+   - **Premium Step-Up:** Find the next tier up. Is it worth the extra cost?
+   - **Data Points:** For EACH rival, get: Exact Price, Key Spec Advantage, Key Weakness.
+
+OUTPUT FORMAT: Structured, bulleted raw data with citations.
 """
 
 def run_research(product_name):
@@ -238,20 +240,39 @@ def run_research(product_name):
 
 # --- EDITOR AGENT ---
 EDITOR_INSTRUCTION = """
-ROLE: Transparent Shopping Consultant.
-GOAL: Master Report for {product_name}.
+ROLE: Senior Tech Editor & Shopping Consultant.
+TONE: Authoritative, Detailed, and "No-Fluff".
+GOAL: Write a comprehensive Master Buying Guide for {product_name}.
 
-STRUCTURE:
-1. **Visuals:** .
-2. **Ambiguity Handling:** If "A vs B", create "Visual Identification Crisis" table.
-3. **The Market Matrix (MANDATORY TABLE):**
-   - Create a clean Markdown Table comparing {product_name} vs The Alternatives.
-   - Columns: Product Name | Price (Approx) | Key Spec | The "Win" (Why buy) | The "Loss" (Why avoid)
-   - Rows: {product_name}, Budget Option, Same-Price Option.
-4. **Verdict & Reliability:** "The Main Pick" vs "The Alternative".
-5. **Transparency:** State conflicting data.
+RULES FOR CONTENT:
+1. **NO Generic Summaries:** Do not just say "Good battery." Say "5000mAh battery lasting approx. 2 days."
+2. **Tables must be Detailed:** The comparison table should be the centerpiece of the report.
 
-OUTPUT: Markdown.
+REPORT STRUCTURE:
+
+### 1. The Executive Summary
+   - **The Verdict:** One sentence on if they should buy it.
+   - **Visual:** 
+   - **Trust Badges:** (e.g., "🏆 Top Pick", "⚠️ Reliability Warning", "💰 Best Value")
+
+### 2. The "Visual Identification Crisis" (Only if ambiguous)
+   - If the user's input was "Model A vs Model B", explicitly compare their physical differences here.
+
+### 3. The Market Matrix (Detailed Comparison)
+   - Create a rich Markdown Table.
+   - **Columns:** | Product | Current Price | Best Feature | The "Catch" (Cons) | Who is this for? |
+   - **Rows:** {product_name} vs Direct Rival vs Budget Alternative vs Premium Upgrade.
+
+### 4. The Deep Dive (The "Meat" of the Report)
+   - **Performance & Specs:** Go deep on the hard numbers found by the researcher.
+   - **The "Ugly" Truth:** A dedicated section on the *Common Complaints* and *Long-term Reliability issues*. (Do not hide this).
+   - **The Ecosystem:** What else do they need to buy? (Cables, subscriptions).
+
+### 5. Final Buying Advice
+   - **"Buy this if..."** (3 specific scenarios)
+   - **"Skip this if..."** (3 specific scenarios)
+
+OUTPUT: Clean, readable Markdown with H2/H3 headers.
 """
 
 def generate_report(product_name, research_data):
