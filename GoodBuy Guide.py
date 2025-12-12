@@ -351,13 +351,35 @@ def generate_personal_rec(product_name, research_data, user_profile):
 st.title("🛍️ The GoodBuy Guide")
 st.caption(f"Powered by **{provider} ({model_id})**")
 
-# --- INPUT SECTION ---
+# --- PHASE 1: INPUT (UPDATED LAYOUT) ---
 with st.container(border=True):
-    col1, col2 = st.columns([1, 1])
-    with col1: text_input = st.text_input("Type Product Name", placeholder="e.g. Dyson Airwrap")
-    with col2: image_input = st.file_uploader("Or Upload Image", type=["jpg", "png", "jpeg"])
+    # Layout: [      Text Input (85%)      ] [ 📷 ] [ 🚀 ]
+    col_input, col_attach, col_run = st.columns([0.85, 0.05, 0.1], vertical_alignment="bottom")
     
-    start_btn = st.button("🚀 Analyze Product", type="primary")
+    with col_input:
+        text_input = st.text_input(
+            "Product Name", 
+            placeholder="Type product name or upload an image...", 
+            label_visibility="collapsed"
+        )
+        
+    with col_attach:
+        # The "Attachment" Button (Popover) mimicking Chat Interface
+        with st.popover("📷", help="Upload Image"):
+            st.markdown("### 📤 Upload Product Image")
+            image_input = st.file_uploader(
+                "Upload", 
+                type=["jpg", "png", "jpeg"], 
+                label_visibility="collapsed"
+            )
+            
+    with col_run:
+        start_btn = st.button("🚀", type="primary", use_container_width=True)
+
+# Visual confirmation if image is uploaded inside the popover
+if image_input:
+    with st.expander("✅ Image Attached (Click to view)", expanded=False):
+        st.image(image_input, width=150)
 
 # --- MAIN LOGIC ---
 if start_btn:
@@ -369,7 +391,7 @@ if start_btn:
     st.session_state.general_report = None
     st.session_state.messages = []
     
-    status = st.status("🕵️ Product Analysis started...", expanded=True)
+    status = st.status("🕵️ Agentic Workflow Started...", expanded=True)
     
     try:
         # Identification
@@ -391,7 +413,6 @@ if start_btn:
             st.stop()
             
         st.session_state.product_name = identified_name
-
         # Research
         status.write(f"🌍 **Researcher:** Scouring web for '{identified_name}' & alternatives...")
         data = run_research(identified_name)
