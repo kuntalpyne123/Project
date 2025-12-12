@@ -398,7 +398,7 @@ if start_btn:
         st.session_state.research_data = data
         
         # Report
-        status.write("📊 **Editor:** Compiling Comparison Matrix...")
+        status.write("📊 **Editor:** Compiling Product Report...")
         report = generate_report(identified_name, data)
         st.session_state.general_report = report
         
@@ -443,16 +443,16 @@ if st.session_state.general_report:
     # --- PERSONALIZATION SECTION ---
     st.markdown("## 👤 The Private Investigator")
     with st.container(border=True):
-        st.markdown("#### Tell us about yourself")
-        st.caption("We'll re-read the research specifically for YOUR lifestyle.")
+        st.markdown("#### Tell us a bit about yourself")
+        st.caption("Let's see if this product is the RIGHT CHoice for YOU")
         
         user_profile = st.text_area("Profile", placeholder="e.g. 'I commute 2 hours a day, love bass-heavy music, but have a strict budget of $200...'")
 
         if st.button("✨ Generate My Personal Verdict"):
             if not user_profile:
-                st.warning("Please tell us a little about yourself first.")
+                st.warning("Please tell us a little about yourself.....")
             else:
-                with st.spinner("🤖 Simulating ownership experience..."):
+                with st.spinner("🤖 Analyzing User Type and Requirements..."):
                     rec = generate_personal_rec(st.session_state.product_name, st.session_state.research_data, user_profile)
                     st.markdown("### 💌 Your Personal Verdict")
                     st.markdown(rec)
@@ -460,7 +460,7 @@ if st.session_state.general_report:
     st.divider()
     
     # --- CHAT SECTION ---
-    st.markdown("### 💬 Ask about this product")
+    st.markdown("### 💬 Know more about this product or other options....")
     if prompt := st.chat_input("Ask me anything..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.markdown(prompt)
