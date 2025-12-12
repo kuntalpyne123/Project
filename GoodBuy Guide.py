@@ -115,9 +115,6 @@ if "research_data" not in st.session_state: st.session_state.research_data = Non
 if "general_report" not in st.session_state: st.session_state.general_report = None
 if "messages" not in st.session_state: st.session_state.messages = []
 if "product_name" not in st.session_state: st.session_state.product_name = ""
-if "confirmed_product" not in st.session_state: st.session_state.confirmed_product = False
-if "identified_name" not in st.session_state: st.session_state.identified_name = None
-if "is_ambiguous" not in st.session_state: st.session_state.is_ambiguous = False
 
 # ===========================
 # 3. SIDEBAR CONFIGURATION
@@ -246,27 +243,23 @@ def call_llm(system_instruction, user_prompt, use_search=False, search_query=Non
 # 6. AGENT PERSONAS & LOGIC
 # ===========================
 
-# --- UPDATED: GENERALIZED FORENSIC VISION AGENT ---
-def identify_product_from_image(image, user_hint=None):
-    hint_instruction = f"USER HINT: The user believes this is '{user_hint}'. Verify if the visual evidence supports this." if user_hint else ""
-    
-    instruction = "You are a Universal Product Recognition Expert. You identify everything from Tech to Fashion, Home Goods, and Cars."
+# --- UPDATED: FORENSIC VISION AGENT ---
+def identify_product_from_image(image):
+    instruction = "You are a Universal Product Recognition Expert."
     
     prompt = f"""
-    Analyze this product image deeply. {hint_instruction}
+    Analyze this product image deeply.
     
     STEP 1: VISUAL FORENSICS
-    - Material Analysis: (Plastic vs Metal, Leather vs Synthetic, etc.)
-    - Design Identifiers: (Logos, Button placement, Bezels, Stitching patterns)
-    - Distinguishing Features: What makes this SPECIFIC model unique?
+    - Look for distinguishing features (materials, bezels, logos, layout).
     
     STEP 2: AMBIGUITY CHECK (CRITICAL)
-    - If the product looks exactly like two different versions (e.g., iPhone 13 vs 14, or two similar handbags), you MUST admit confusion.
-    - Format ambiguous results as: "Product A vs Product B" (e.g., "Samsung S24 Ultra vs S25 Ultra").
+    - If the product looks exactly like two different versions (e.g., iPhone 13 vs 14, or S24 vs S25, or similar handbags), you MUST admit confusion.
+    - Format ambiguous results STRICTLY as: "Product A vs Product B" (e.g., "Samsung S24 Ultra vs S25 Ultra").
     
     STEP 3: OUTPUT
     - Return ONLY the Product Name (or the "A vs B" string).
-    - No filler words like "This is".
+    - Do not add filler words.
     """
     return call_llm(instruction, prompt, image_data=image)
 
@@ -275,7 +268,7 @@ ROLE: You are the "Product Intelligence Engine".
 GOAL: Investigate {product_name}. 
 
 SPECIAL INSTRUCTION FOR AMBIGUOUS INPUTS ("A vs B"):
-If the product name implies a comparison (e.g. "S24 vs S25"):
+If the product name implies a comparison (e.g. "S24 vs S25" or "Sony M4 vs M5"):
 1. Treat this as a COMPARATIVE RESEARCH task.
 2. Investigate BOTH products.
 3. Explicitly find the differences in specs, price, and issues.
@@ -353,118 +346,86 @@ with st.container(border=True):
 
     analyze_btn = st.button("🚀 Analyze Product", type="primary")
 
-# --- LOGIC CONTROL FLOW ---
+# --- LOGIC CONTROL FLOW (AUTOMATED PIPELINE) ---
 if analyze_btn:
-    st.session_state.confirmed_product = False
-    st.session_state.identified_name = None
-    st.session_state.is_ambiguous = False
-    st.session_state.messages = []
-    st.session_state.general_report = None
-    
-    # 1. Image Logic 
-    if image_input:
-        if not api_key:
-            st.error("🔑 API Key missing. Please configure settings.")
-            st.stop()
-            
-        with st.spinner("📸 Visual Cortex: Scanning design, materials, and potential ambiguities..."):
-            image = Image.open(image_input)
-            st.session_state.image_obj = image 
-            
-            # CALL THE VISION AGENT
-            identified = identify_product_from_image(image)
-            st.session_state.identified_name = identified.strip()
-            
-            # CHECK FOR AMBIGUITY ("vs" or "or" in the name)
-            if " vs " in identified.lower() or " or " in identified.lower():
-                st.session_state.is_ambiguous = True
-
-    # 2. Text Logic
-    elif text_input:
-        st.session_state.identified_name = text_input
-        st.session_state.confirmed_product = True 
-    
-    else:
-        st.warning("Please provide a name or image.")
-
-# --- PHASE 2: CONFIRMATION & AMBIGUITY HANDLING ---
-if st.session_state.identified_name and not st.session_state.confirmed_product:
-    st.divider()
-    
-    col_img, col_act = st.columns([1, 2])
-    with col_img:
-        if "image_obj" in st.session_state:
-            st.image(st.session_state.image_obj, width=200, caption="Your Upload")
-            
-    with col_act:
-        # --- SCENARIO A: AMBIGUOUS IDENTIFICATION (User Req Step 1 & 2) ---
-        if st.session_state.is_ambiguous:
-            st.warning(f"🤔 Visual Similarity Detected: The user has probably uploaded the image of **{st.session_state.identified_name}**.")
-            st.info("💡 I will give the comparative analysis of all these products identified by me from the uploaded image.")
-            
-            if st.button("✅ Proceed with Comparative Analysis"):
-                st.session_state.product_name = st.session_state.identified_name
-                st.session_state.confirmed_product = True
-                st.rerun()
-                
-        # --- SCENARIO B: SINGLE IDENTIFICATION ---
-        else:
-            st.success(f"🤖 AI Identified: **{st.session_state.identified_name}**")
-            st.caption("Please confirm if this is correct.")
-            
-            c1, c2 = st.columns(2)
-            if c1.button("✅ Yes, Correct"):
-                st.session_state.product_name = st.session_state.identified_name
-                st.session_state.confirmed_product = True
-                st.rerun()
-                
-            if c2.button("❌ No, Let me Fix"):
-                st.session_state.manual_correction_mode = True
-
-    if st.session_state.get("manual_correction_mode"):
-        correct_name = st.text_input("Type the correct name:", value=st.session_state.identified_name)
-        if st.button("Run Analysis with Correct Name"):
-            st.session_state.product_name = correct_name
-            st.session_state.confirmed_product = True
-            st.session_state.manual_correction_mode = False
-            st.rerun()
-
-# --- PHASE 3: EXECUTE RESEARCH (NORMAL WORKFLOW) ---
-if st.session_state.confirmed_product and not st.session_state.general_report:
-    # Rate Limit Check
+    # 0. RATE LIMIT CHECK
     if using_free_key:
         user_ip = get_remote_ip()
         current = get_usage_count(user_ip)
         if current >= FREE_USAGE_LIMIT:
             st.error("🛑 Free Usage Limit Reached.")
             st.stop()
+            
+    if not api_key:
+        st.error("🔑 API Key missing.")
+        st.stop()
 
-    status = st.status(f"🕵️ Deep Diving into **{st.session_state.product_name}**...", expanded=True)
+    st.session_state.messages = []
+    st.session_state.general_report = None
+    st.session_state.product_name = ""
+    
+    status = st.status(f"🕵️ Initiating Deep Dive via {provider}...", expanded=True)
+
     try:
-        # Research (Handles "A vs B" automatically due to updated Prompt)
-        status.write("🌍 **The Deep Hunter:** Scouring global markets, comparisons & reliability logs...")
-        data = run_research(st.session_state.product_name)
-        st.session_state.research_data = data
+        identified_name = ""
         
-        # Report (Will generate comparative table if ambiguous)
+        # 1. IMAGE PATH (With Auto-Ambiguity Handling)
+        if image_input:
+            status.write("📸 **Visual Cortex:** Scanning design, materials, and potential ambiguities...")
+            image = Image.open(image_input)
+            st.session_state.image_obj = image # Save for display later
+            
+            # Call Vision Agent
+            identified_name = identify_product_from_image(image).strip()
+            
+            # Visual Feedback in Status
+            if " vs " in identified_name.lower():
+                 status.write(f"🤔 **Ambiguity Detected:** Resembles multiple models ({identified_name}). Initiating Comparative Protocol.")
+            else:
+                 status.write(f"👁️ **Identified:** {identified_name}")
+
+        # 2. TEXT PATH
+        elif text_input:
+            identified_name = text_input
+        
+        else:
+            status.update(label="⚠️ No Input", state="error")
+            st.warning("Please provide input.")
+            st.stop()
+
+        # 3. SET PRODUCT NAME (Crucial Step: Feeding the result into the pipeline)
+        st.session_state.product_name = identified_name
+
+        # 4. RESEARCH PHASE (Automated)
+        status.write(f"🌍 **The Deep Hunter:** Scouring global markets for '{identified_name}'...")
+        # If name is "S24 vs S25", the Researcher is already prompted to do a comparison.
+        research_data = run_research(identified_name)
+        st.session_state.research_data = research_data
+        
+        # 5. REPORT PHASE (Automated)
         status.write("📊 **The Analyst:** Compiling Master Guide...")
-        report = generate_report(st.session_state.product_name, data)
+        report = generate_report(identified_name, research_data)
         st.session_state.general_report = report
         
-        # Increment Usage
+        # 6. USAGE INCREMENT
         if using_free_key:
             increment_usage(user_ip)
             
-        status.update(label="✅ Complete!", state="complete", expanded=False)
-        st.rerun()
-        
+        status.update(label="✅ Analysis Complete!", state="complete", expanded=False)
+
     except Exception as e:
         status.update(label="❌ Error", state="error")
         st.error(f"System Error: {e}")
 
-# --- PHASE 4: DISPLAY RESULTS ---
+# --- PHASE 2: DISPLAY RESULTS ---
 if st.session_state.general_report:
     st.divider()
+    
+    # Show Image if one was uploaded
+    if "image_obj" in st.session_state:
+        st.image(st.session_state.image_obj, width=150, caption="Analyzed Image")
+
+    # Display Report
     st.markdown(st.session_state.general_report)
     
     with st.expander("🔍 View Raw Intelligence (Transparency)"):
