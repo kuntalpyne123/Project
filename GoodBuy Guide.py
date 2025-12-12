@@ -212,49 +212,78 @@ RESEARCHER_INSTRUCTION = """
 ROLE: Product Intelligence Engine.
 GOAL: Investigate {product_name}. 
 AMBIGUITY PROTOCOL: If {product_name} contains "vs", PERFORM COMPARATIVE ANALYSIS.
-MANDATORY: Sales Status, Reliability, Hidden Costs, Fake Reviews, Competitors.
-OUTPUT: Raw notes.
+
+MANDATORY DATA COLLECTION:
+1.  **Market Status:** Is it Limited Edition? Discontinued? What are the sales trends/popularity in major regions (US, EU, Asia)?
+2.  **The \"Hidden Gotchas\":** Find maintenance costs, subscription fees, accessory requirements, and common repair issues after 6 months.
+3.  **Fake Review Detection:** Scan for patterns—disparity between \"professional\" and \"user\" reviews, or floods of 5-star vague reviews.
+4.  **Competitor Intelligence:** Find 2-3 direct rivals. Compare Price vs. Performance.
+5.  **Technical Specs:** The hard numbers (dimensions, battery life, materials).
+6.  **Price Intelligence:** Current street price, MSRP, and discount history.
+7. Sales Status & Market Position.
+8. **COMPETITOR MATRIX (Crucial):**
+   - Find 1 Direct Competitor (Same Price).
+   - Find 1 Budget Alternative (Cheaper but good).
+   - Find 1 Premium Alternative (Better specs).
+   - Get Price, Screen/Size, Main Pro, and Main Con for all.
+
+OUTPUT: Raw detailed notes.
 """
 
 def run_research(product_name):
     instruction = RESEARCHER_INSTRUCTION.format(product_name=product_name)
-    prompt = f"Investigate {product_name}. Check reliability, market status, and rivals."
-    search_query = f"{product_name} reviews problems reliability vs competitors 2025"
+    prompt = f"Investigate {product_name}. Check reliability, market status, and SPECIFIC budget/direct competitors for a comparison table."
+    search_query = f"{product_name} reviews vs budget alternatives vs direct competitors specs 2025"
     return call_llm(instruction, prompt, use_search=True, search_query=search_query)
 
 # --- EDITOR AGENT ---
 EDITOR_INSTRUCTION = """
 ROLE: Transparent Shopping Consultant.
 GOAL: Master Report for {product_name}.
+
 STRUCTURE:
-1. Visuals.
-2. Ambiguity Handling: If "A vs B", create "Visual Identification Crisis" table.
-3. Verdict & Reliability.
+1. **Visuals:** .
+2. **Ambiguity Handling:** If "A vs B", create "Visual Identification Crisis" table.
+3. **The Market Matrix (MANDATORY TABLE):**
+   - Create a clean Markdown Table comparing {product_name} vs The Alternatives.
+   - Columns: Product Name | Price (Approx) | Key Spec | The "Win" (Why buy) | The "Loss" (Why avoid)
+   - Rows: {product_name}, Budget Option, Same-Price Option.
+4. **Verdict & Reliability:** "The Main Pick" vs "The Alternative".
+5. **Transparency:** State conflicting data.
+
 OUTPUT: Markdown.
 """
 
 def generate_report(product_name, research_data):
     instruction = EDITOR_INSTRUCTION.format(product_name=product_name)
-    prompt = f"Research Data:\n{research_data}\n\nGenerate Guide."
+    prompt = f"Research Data:\n{research_data}\n\nGenerate Guide with the Comparison Table."
     return call_llm(instruction, prompt)
 
-# --- PERSONALIZER AGENT (RESTORED) ---
+# --- PERSONALIZER AGENT (UPDATED) ---
 PERSONALIZER_INSTRUCTION = """
 ROLE: You are a hyper-personalized Sales Engineer.
 GOAL: Re-evaluate {product_name} specifically for the USER'S PROFILE.
-TASK: Match/Mismatch analysis.
-OUTPUT: A short, punchy personal letter to the user.
+
+INSTRUCTIONS FOR OUTPUT:
+1. **Be Detailed & Thoughtful:** Do not be brief. Write a consultation letter (approx 200-300 words).
+2. **Structure:**
+   - **"The Fit Check":** Analyze how the product specs specifically match the user's mentioned habits/needs.
+   - **"Day-in-the-Life Simulation":** Describe a specific scenario where this product will help or hinder them based on their profile.
+   - **"The Hard Truth":** If the user is on a budget, warn them about hidden costs. If they are a power user, warn them about limitations.
+   - **"Final Verdict":** A definitive "Buy" or "Skip" tailored to them.
+
+OUTPUT: A detailed, empathetic, and logic-driven letter.
 """
 
 def generate_personal_rec(product_name, research_data, user_profile):
     instruction = PERSONALIZER_INSTRUCTION.format(product_name=product_name)
-    prompt = f"Research Data: {research_data}\nUser Profile: {user_profile}\nGenerate a personalized recommendation letter."
+    prompt = f"Research Data: {research_data}\nUser Profile: {user_profile}\nGenerate a detailed personalized recommendation letter."
     return call_llm(instruction, prompt)
 
 # ===========================
 # 6. APP INTERFACE
 # ===========================
-st.title("🛍️ Product IQ: Agentic Shopper")
+st.title("🛍️ The GoodBuy Guide")
 st.caption(f"Powered by **{provider} ({model_id})**")
 
 # --- INPUT SECTION ---
@@ -275,7 +304,7 @@ if start_btn:
     st.session_state.general_report = None
     st.session_state.messages = []
     
-    status = st.status("🕵️ Agentic Workflow Started...", expanded=True)
+    status = st.status("🕵️ Product Analysis started...", expanded=True)
     
     try:
         # Identification
@@ -299,12 +328,12 @@ if start_btn:
         st.session_state.product_name = identified_name
 
         # Research
-        status.write(f"🌍 **Research Agent:** Scouring web for '{identified_name}'...")
+        status.write(f"🌍 **Researcher:** Scouring web for '{identified_name}' & alternatives...")
         data = run_research(identified_name)
         st.session_state.research_data = data
         
         # Report
-        status.write("📊 **Editorial Agent:** Compiling Master Guide...")
+        status.write("📊 **Editor:** Compiling Comparison Matrix...")
         report = generate_report(identified_name, data)
         st.session_state.general_report = report
         
@@ -346,13 +375,13 @@ if st.session_state.general_report:
     
     st.divider()
     
-    # --- PERSONALIZATION SECTION (RESTORED) ---
+    # --- PERSONALIZATION SECTION ---
     st.markdown("## 👤 The Private Investigator")
     with st.container(border=True):
         st.markdown("#### Tell us about yourself")
         st.caption("We'll re-read the research specifically for YOUR lifestyle.")
         
-        user_profile = st.text_area("Profile", placeholder="e.g. 'I commute 2 hours a day and wear glasses...'")
+        user_profile = st.text_area("Profile", placeholder="e.g. 'I commute 2 hours a day, love bass-heavy music, but have a strict budget of $200...'")
 
         if st.button("✨ Generate My Personal Verdict"):
             if not user_profile:
