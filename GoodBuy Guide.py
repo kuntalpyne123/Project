@@ -209,70 +209,114 @@ def identify_product_from_image(image):
 
 # --- RESEARCHER AGENT ---
 RESEARCHER_INSTRUCTION = """
-ROLE: Product Intelligence Engine.
-GOAL: Conduct a forensic deep-dive into {product_name}. Do not summarize; extract raw, evidence-based data.
+ROLE: Senior Market Intelligence Analyst.
+GOAL: Compile a detailed, raw evidence dossier on {product_name}.
+RULE: DO NOT SUMMARIZE. I need specific numbers, quotes, and technical details.
 
-AMBIGUITY PROTOCOL:
-If {product_name} contains "vs" or "or", treat this as a HEAD-TO-HEAD showdown. Investigate BOTH deeply.
+MANDATORY INTELLIGENCE GATHERING:
+1.  **Pricing Forensics:**
+    - What is the official MSRP?
+    - What is the current "Street Price" on Amazon/BestBuy/Resale sites?
+    - Has it hit an all-time low recently? (Give the price).
 
-MANDATORY INTELLIGENCE BUCKETS:
-1. **The "Real" Price:** Track price fluctuations. What is the MSRP vs Current Street Price? Any upcoming sales events?
-2. **The "Hidden" Negatives (CRITICAL):**
-   - Search specific forums (Reddit, reliability threads) for failures after 6-12 months.
-   - Look for "known issues" like stick drift, battery degradation, or overheating.
-   - List mandatory "hidden costs" (dongles, subscriptions, expensive repairs).
-3. **Market Context:** Is this product end-of-life? Is a replacement coming soon?
-4. **Fake Review Filter:** Do professional reviews match user sentiment? Flag discrepancies.
-5. **THE COMPETITOR MATRIX DATA (Must be specific):**
-   - **Direct Rival (Same Price):** Find the closest competitor. Get exact specs (Battery size, Screen nits, Chipset).
-   - **Budget Killer (Cheaper):** Find a product 20-30% cheaper that offers 80% of the performance.
-   - **Premium Step-Up:** Find the next tier up. Is it worth the extra cost?
-   - **Data Points:** For EACH rival, get: Exact Price, Key Spec Advantage, Key Weakness.
+2.  **The "Hidden" Reality (Negative Bias Search):**
+    - Search Reddit/Forums for "failed after X months".
+    - identifying recurring defects (e.g., "hinge crack," "battery drain," "stitching issues").
+    - Are there subscription walls or expensive accessories required?
 
-OUTPUT FORMAT: Structured, bulleted raw data with citations.
+3.  **Competitive Landscape (Specifics Required):**
+    - Identify exactly 3 rivals:
+      A. Direct Rival (Same Price).
+      B. Budget Killer (Cheaper).
+      C. The "Dream" Upgrade (More expensive).
+    - For EACH rival, find: Name, Price, Main Advantage over {product_name}, and Main Weakness.
+
+4.  **Technical Deep Dive:**
+    - Weight, Dimensions, Battery Life (Real-world vs Claimed), Materials used.
+
+5.  **Social Sentiment:**
+    - What do the 1-star reviews say?
+    - What do the 5-star reviews say?
+
+OUTPUT: A dense, detailed, unformatted text file with all these facts.
 """
 
 def run_research(product_name):
+    # We pass the DETAILED instruction to the System Role
     instruction = RESEARCHER_INSTRUCTION.format(product_name=product_name)
-    prompt = f"Investigate {product_name}. Check reliability, market status, and SPECIFIC budget/direct competitors for a comparison table."
-    search_query = f"{product_name} reviews vs budget alternatives vs direct competitors specs 2025"
+    
+    # We give a specific Prompt to trigger the behavior
+    prompt = f"""
+    CONDUCT A DEEP-DIVE INVESTIGATION ON: {product_name}
+    
+    1. SCOUR the web for "Reddit {product_name} issues", "long term review", and "{product_name} vs competitors".
+    2. FIND precise pricing data.
+    3. FILL the Competitor Matrix with 3 specific rivals.
+    
+    Provide the RAW DATA now.
+    """
+    search_query = f"{product_name} detailed specs price history vs competitors reliability reddit issues"
+    # Execute
     return call_llm(instruction, prompt, use_search=True, search_query=search_query)
 
 # --- EDITOR AGENT ---
 EDITOR_INSTRUCTION = """
-ROLE: Senior Tech Editor & Shopping Consultant.
-TONE: Authoritative, Detailed, and "No-Fluff".
-GOAL: Write a comprehensive Master Buying Guide for {product_name}.
+ROLE: Lead Reviews Editor at a Top Tech Publication (e.g., The Verge, Wirecutter).
+TONE: Authoritative, Professional, Nuanced, and Comprehensive.
+GOAL: Write the definitive Buying Guide for {product_name}.
 
-RULES FOR CONTENT:
-1. **NO Generic Summaries:** Do not just say "Good battery." Say "5000mAh battery lasting approx. 2 days."
-2. **Tables must be Detailed:** The comparison table should be the centerpiece of the report.
+INPUT DATA: Use the Researcher's raw notes.
 
-REPORT STRUCTURE:
+STRICT WRITING RULES:
+1.  **No "Form Filling":** Do not output "Section 1", "Section 2". Write a flowing article with H2 headers.
+2.  **Table Formatting:** The Comparison Matrix must be a properly formatted Markdown table.
+3.  **Ambiguity Logic:** IF (and ONLY IF) the Researcher identified an ambiguity (e.g., "S24 vs S25"), include a specific section clarifying it. If not, SKIP IT.
+4.  **Detail Level:** Do not say "Good battery." Say "The battery lasts approx. 14 hours, which is 2 hours less than the..."
 
-### 1. The Executive Summary
-   - **The Verdict:** One sentence on if they should buy it.
-   - **Visual:** 
-   - **Trust Badges:** (e.g., "🏆 Top Pick", "⚠️ Reliability Warning", "💰 Best Value")
+--- REPORT SKELETON (Use this as a guide, not a checklist) ---
 
-### 2. The "Visual Identification Crisis" (Only if ambiguous)
-   - If the user's input was "Model A vs Model B", explicitly compare their physical differences here.
+# The Definitive Review: {product_name}
 
-### 3. The Market Matrix (Detailed Comparison)
-   - Create a rich Markdown Table.
-   - **Columns:** | Product | Current Price | Best Feature | The "Catch" (Cons) | Who is this for? |
-   - **Rows:** {product_name} vs Direct Rival vs Budget Alternative vs Premium Upgrade.
 
-### 4. The Deep Dive (The "Meat" of the Report)
-   - **Performance & Specs:** Go deep on the hard numbers found by the researcher.
-   - **The "Ugly" Truth:** A dedicated section on the *Common Complaints* and *Long-term Reliability issues*. (Do not hide this).
-   - **The Ecosystem:** What else do they need to buy? (Cables, subscriptions).
 
-### 5. Final Buying Advice
-   - **"Buy this if..."** (3 specific scenarios)
-   - **"Skip this if..."** (3 specific scenarios)
+### 🏆 The Executive Verdict
+(Write a 3-4 sentence distinct paragraph. Is it a buy? Who is it for? Be decisive.)
 
-OUTPUT: Clean, readable Markdown with H2/H3 headers.
+**Quick Ratings:**
+* **Reliability:** (e.g., 4/5 - "Solid build but prone to scratches")
+* **Value:** (e.g., 5/5 - "Unbeatable for the price")
+* **Future Proofing:** (e.g., 3/5 - "Successor rumored in Q4")
+
+---
+
+### 📉 Market Analysis & Pricing
+(Discuss the current street price vs MSRP. Is it a good time to buy? Are there fake listings?)
+
+---
+
+### ⚔️ The Competition Matrix (MANDATORY)
+*Here is how {product_name} stacks up against the market:*
+
+| Product | Price | The "Win" (Pro) | The "Loss" (Con) | Verdict |
+| :--- | :--- | :--- | :--- | :--- |
+| **{product_name}** | $X | ... | ... | ... |
+| **(Budget Rival)** | $Y | ... | ... | ... |
+| **(Direct Rival)** | $Z | ... | ... | ... |
+| **(Premium Rival)** | $A | ... | ... | ... |
+
+*(Add a paragraph below the table analyzing these choices deeply).*
+
+---
+
+### 🕵️ The "Hidden" Truths (Long-Term Ownership)
+(Detail the wear-and-tear issues. Mention the Reddit/Forum complaints found by the researcher. Discuss maintenance costs.)
+
+---
+
+### 📝 Final Buying Advice
+* **✅ Buy it if:** (Scenario A), (Scenario B).
+* **❌ Skip it if:** (Scenario C), (Scenario D).
+
 """
 
 def generate_report(product_name, research_data):
