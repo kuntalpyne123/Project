@@ -122,10 +122,14 @@ with st.sidebar:
         else: model_id = "gemini-3-pro-preview"
 
     elif provider == "OpenAI (ChatGPT)":
+        # --- RESTORED CONFIRMATION ---
+        st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter OpenAI API Key", type="password")
         model_id = st.selectbox("Select Model:", ("gpt-4o", "gpt-4o-mini"))
 
     elif provider == "Anthropic (Claude)":
+        # --- RESTORED CONFIRMATION ---
+        st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter Anthropic API Key", type="password")
         model_id = st.selectbox("Select Model:", ("claude-3-5-sonnet-20241022", "claude-3-opus-20240229"))
 
