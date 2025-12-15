@@ -129,7 +129,7 @@ with st.sidebar:
     elif provider == "Anthropic (Claude)":
         st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter Anthropic API Key", type="password")
-        model_id = st.selectbox("Select Model:", ("claude-3-5-sonnet-20241022", "claude-3-opus-20240229"))
+        model_id = st.selectbox("Select Model:", ("claude-opus-4-1-20250805", "claude-opus-4-5-20251101", "claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"))
 
     client = None
     if api_key:
