@@ -124,7 +124,7 @@ with st.sidebar:
     elif provider == "OpenAI (ChatGPT)":
         st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter OpenAI API Key", type="password")
-        model_id = st.selectbox("Select Model:", ("gpt-4o", "gpt-4o-mini"))
+        model_id = st.selectbox("Select Model:", ("gpt-5.2", "gpt-5.1", "gpt-5-mini"))
 
     elif provider == "Anthropic (Claude)":
         st.info("🌐 Web Search enabled via DuckDuckGo")
