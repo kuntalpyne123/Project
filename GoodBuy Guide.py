@@ -155,7 +155,7 @@ def call_llm(system_instruction, user_prompt, use_search=False, search_query=Non
     # --- GEMINI ---
     if provider == "Google Gemini":
         tools = [Tool(google_search=GoogleSearch())] if use_search else None
-        config = GenerateContentConfig(tools=tools, system_instruction=system_instruction, temperature=0.3)
+        config = GenerateContentConfig(tools=tools, system_instruction=system_instruction, temperature=0.1)
         contents = [user_prompt]
         if image_data: contents.append(image_data)
         try: return client.models.generate_content(model=model_id, contents=contents, config=config).text
