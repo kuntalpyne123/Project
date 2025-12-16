@@ -192,7 +192,7 @@ with st.sidebar:
     elif provider == "OpenAI (ChatGPT)":
         st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter OpenAI API Key", type="password")
-        model_id = st.selectbox("Select Model:", ("gpt-4-turbo", "gpt-4o", "gpt-3.5-turbo"))
+        model_id = st.selectbox("Select Model:", ("gpt-5.2-pro", "gpt-5.2", "gpt-5", "gpt-5-mini"))
 
     # --- ANTHROPIC SETTINGS ---
     elif provider == "Anthropic (Claude)":
