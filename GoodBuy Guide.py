@@ -177,7 +177,7 @@ with st.sidebar:
             api_key = st.text_input("Enter Gemini API Key", type="password")
         
         # [MODIFICATION 2: RESTRICT GEMINI MODELS]
-        if using_free_key:
+        if default_key:
             gemini_options = ("2.5 Flash", "3 Flash (Latest & Fastest)")
         else:
             gemini_options = ("2.5 Flash", "2.5 Pro", "3 Flash (Latest)", "3 Pro (Most Powerful)")
