@@ -1,4 +1,11 @@
 streamlit
-google-genai
+pandas
+pytrends
+gspread
+oauth2client
+duckduckgo_search
+google-generativeai
 openai
 anthropic
+pillow
+
