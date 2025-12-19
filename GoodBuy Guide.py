@@ -178,14 +178,15 @@ with st.sidebar:
         
         # [MODIFICATION 2: RESTRICT GEMINI MODELS]
         if using_free_key:
-            gemini_options = ("2.5 Flash (Fast)", "2.5 Pro (Stable)")
+            gemini_options = ("3 Flash (Fastest)")
         else:
-            gemini_options = ("2.5 Flash (Fast)", "2.5 Pro (Stable)", "3.0 Pro (Latest)")
+            gemini_options = ("2.5 Flash (Fast)", "2.5 Pro (Stable)", "3.0 Flash (Fastest)", "3.0 Pro (Latest)")
             
         model_choice = st.selectbox("Select Gemini Model:", gemini_options)
         
-        if "Flash" in model_choice: model_id = "gemini-2.5-flash"
-        elif "2.5" in model_choice: model_id = "gemini-2.5-pro"
+        if "2.5 Flash" in model_choice: model_id = "gemini-2.5-flash"
+        elif "2.5 Pro" in model_choice: model_id = "gemini-2.5-pro"
+        elif "3.0 Flash" in model choice: model_id = "gemini-3.0-flash-preview"
         else: model_id = "gemini-3.0-pro-preview"
 
     # --- OPENAI SETTINGS ---
