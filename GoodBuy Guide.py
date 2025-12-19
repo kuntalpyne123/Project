@@ -160,7 +160,7 @@ with st.sidebar:
     # --- GOOGLE GEMINI SETTINGS ---
     if provider == "Google Gemini":
         st.info("⚡ Native Search Grounding (Most Accurate)")
-        key_source = st.radio("API Key Source:", ("Use Free Default Key", "Enter My Own Key"))
+        key_source = st.radio("API Key Source:", ("Default Key", "Custom Key to access GEMINI PRO models"))
         
         if key_source == "Use Free Default Key":
             using_free_key = True 
