@@ -337,17 +337,16 @@ def analyze_data_for_charts(product_name, research_data):
 
     --- CHART 1: MARKET PRESENCE (Vertical Bar Chart) ---
     Rules for 'market_stats':
-    1.  **PRIORITY ORDER (Strict):**
-        - Choice A: Sales Volume / Shipments (Best)
-        - Choice B: Global Market Share % (If A is missing)
-        - Choice C: Total User Reviews Count (Fallback only)
-    2.  **Breadth:** Include {product_name} AND at least 3-4 other major competitors found in the text (e.g., Xiaomi, Pixel, etc.). Do NOT limit to just 2 unless absolutely no other data exists.
-    3.  **Label:** "metric_name" should describe what you found (e.g., "Annual Shipments (Millions)").
+   1.  **PRIORITY 1:** SALES DATA (e.g. "10 Million Units Sold", "$5B Revenue").
+    2.  **PRIORITY 2:** MARKET SHARE % (e.g. "22% Market Share").
+    3.  **STRICT RULE:** Do NOT use "Shipments" unless it is the only data available. Do NOT use "Review Counts".
+    4.  **Breadth:** Include {product_name} AND at least 3-4 other major competitors found in the text.
+    5.  **Label:** "metric_name" should describe what you found (e.g., "Est. Annual Sales (Units)").
 
     --- CHART 2: FEATURE SCORECARD (Horizontal Grouped Bar Chart) ---
     Rules for 'feature_scores':
     1.  Based on the sentiment in the text, assign a score from 1 (Poor) to 5 (Excellent).
-    2.  Categories: "Camera", "Battery", "Performance", "Value".
+    2.  Categories: "Camera", "Battery", "Performance", "Value", "Durability".
     3.  Include {product_name} and the top 2-3 competitors.
 
     OUTPUT FORMAT (STRICT JSON):
@@ -486,7 +485,7 @@ with st.container(border=True):
             )
             
     with col_run:
-        start_btn = st.button("🚀", type="primary", use_container_width=True)
+        start_btn = st.button("⏩", type="primary", use_container_width=True)
 
 if image_input:
     with st.expander("✅ Image Attached (Click to view)", expanded=False):
@@ -544,7 +543,7 @@ if start_btn:
         st.session_state.chart_data = chart_json
         
         # Report
-        status.write("📊 **Editor:** Compiling Product Report...")
+        status.write("📔✒️ **Editor:** Compiling Product Report...")
         report = generate_report(identified_name, data)
         st.session_state.general_report = report
         
