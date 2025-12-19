@@ -3,6 +3,8 @@ import os
 import base64
 import io
 import json
+import re
+import pandas as pd
 from datetime import datetime
 from PIL import Image
 from streamlit.web.server.websocket_headers import _get_websocket_headers
@@ -36,10 +38,6 @@ except ImportError:
 # ===========================
 # 1. PERSISTENT USAGE TRACKING (CLOUD BASED)
 # ===========================
-# NOTE: To use this "Net Based DBMS", you must create a Google Cloud Service Account
-# and add the JSON credentials to your Streamlit secrets.
-# If secrets are missing, it falls back to in-memory tracking (resets on reboot).
-
 FREE_USAGE_LIMIT = 5
 SHEET_NAME = "user_quotas"
 
@@ -72,7 +70,6 @@ def init_db():
             try:
                 sheet = client.open(SHEET_NAME).sheet1
             except gspread.SpreadsheetNotFound:
-                # Note: creating sheets requires permissions, easier to create manually once
                 st.warning(f"Cloud DB Error: Please create a Google Sheet named '{SHEET_NAME}' and share it with your service account email.")
                 return
             
@@ -89,10 +86,8 @@ def get_usage_count(ip):
     
     try:
         sheet = client.open(SHEET_NAME).sheet1
-        # Search for IP in the first column
         cell = sheet.find(ip)
         if cell:
-            # The count is in the next column (col 2)
             return int(sheet.cell(cell.row, 2).value)
         return 0
     except Exception:
@@ -143,6 +138,7 @@ st.markdown("""
 
 if "research_data" not in st.session_state: st.session_state.research_data = None
 if "general_report" not in st.session_state: st.session_state.general_report = None
+if "market_chart_data" not in st.session_state: st.session_state.market_chart_data = None
 if "messages" not in st.session_state: st.session_state.messages = []
 if "product_name" not in st.session_state: st.session_state.product_name = ""
 
@@ -160,7 +156,7 @@ with st.sidebar:
     # --- GOOGLE GEMINI SETTINGS ---
     if provider == "Google Gemini":
         st.info("⚡ Native Search Grounding (Most Accurate)")
-        key_source = st.radio("API Key Source:", ("Free Key", "Custom Key to access GEMINI PRO models"))
+        key_source = st.radio("API Key Source:", ("Use Free Default Key", "Custom Key to access GEMINI PRO models"))
         
         if key_source == "Use Free Default Key":
             using_free_key = True 
@@ -176,9 +172,10 @@ with st.sidebar:
         else:
             api_key = st.text_input("Enter Gemini API Key", type="password")
         
-        # [MODIFICATION 2: RESTRICT GEMINI MODELS]
+        # [MODIFICATION: RESTRICT GEMINI MODELS]
         if using_free_key:
-            gemini_options = ("2.5 Flash", "3 Flash (Latest & Fastest)")
+            # Strictly restricting to 2.5 Flash and 3 Flash Preview
+            gemini_options = ("2.5 Flash", "3 Flash Preview")
         else:
             gemini_options = ("2.5 Flash", "2.5 Pro", "3 Flash (Latest)", "3 Pro (Most Powerful)")
             
@@ -200,7 +197,6 @@ with st.sidebar:
         st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter Anthropic API Key", type="password")
         
-        # [MODIFICATION 1: CLEAN MODEL NAMES]
         # Mapping Display Name -> Model ID
         anthropic_models = {
             "Sonnet 4.5": "claude-sonnet-4-5-20250929",
@@ -318,6 +314,10 @@ MANDATORY INTELLIGENCE GATHERING:
     - What do the 1-star reviews say?
     - What do the 5-star reviews say?
 
+6.  **Market Data (CRITICAL FOR CHARTING):**
+    - Search for specific SALES FIGURES, SHIPMENT VOLUMES, or MARKET SHARE percentages for this product and its competitors.
+    - If exact sales are not public, find the "Number of Reviews" on major platforms (Amazon/Google Shopping) to use as a proxy for popularity.
+
 OUTPUT: A dense, detailed, unformatted text file with all these facts.
 """
 
@@ -328,12 +328,54 @@ def run_research(product_name):
     
     1. SCOUR the web for "Reddit {product_name} issues", "long term review", and "{product_name} vs competitors".
     2. FIND precise pricing data.
-    3. FILL the Competitor Matrix with 3 specific rivals.
+    3. FIND sales figures, market share percentages, or total shipment numbers for {product_name} and its competitors.
+    4. FILL the Competitor Matrix with 3 specific rivals.
     
     Provide the RAW DATA now.
     """
-    search_query = f"{product_name} detailed specs price history vs competitors reliability reddit issues"
+    # [MODIFICATION: Added sales/market share terms to query]
+    search_query = f"{product_name} detailed specs price history vs competitors reliability reddit issues sales figures market share shipments"
     return call_llm(instruction, prompt, use_search=True, search_query=search_query)
+
+# --- DATA ANALYST AGENT (NEW) ---
+def get_market_data_json(product_name, research_data):
+    """Parses text to extract numbers for the visual chart."""
+    instruction = "You are a Data Analyst. Convert unstructured text into strict JSON for graphing."
+    prompt = f"""
+    Analyze the following research data for {product_name}:
+    {research_data}
+
+    TASK:
+    Extract comparable numerical metrics for {product_name} and its competitors to build a Bar Chart.
+    
+    PRIORITY OF METRICS (Choose ONE that has data for most items):
+    1. Sales Volume / Shipments (e.g. "10 million units")
+    2. Global Market Share % (e.g. "25%")
+    3. Number of User Reviews (e.g. "Amazon: 5,000 reviews") - Use this as a proxy for popularity if sales are hidden.
+
+    OUTPUT FORMAT (STRICT JSON):
+    {{
+        "chart_title": "Metric Name (e.g. Estimated Annual Shipments in Millions)",
+        "data": {{
+            "{product_name}": 10.5,
+            "Competitor A": 8.2,
+            "Competitor B": 15.0
+        }}
+    }}
+
+    RULES:
+    1. Use ONLY numbers found in the text. DO NOT HALLUCINATE data.
+    2. If no data is found, return {{ "data": {{}} }}.
+    3. Ensure keys in "data" are short Product Names.
+    """
+    response = call_llm(instruction, prompt, use_search=False)
+    
+    # Simple cleaner to handle markdown code blocks
+    try:
+        clean_json = response.replace("```json", "").replace("```", "").strip()
+        return json.loads(clean_json)
+    except:
+        return None
 
 # --- EDITOR AGENT ---
 EDITOR_INSTRUCTION = """
@@ -466,6 +508,7 @@ if start_btn:
     
     # Reset
     st.session_state.general_report = None
+    st.session_state.market_chart_data = None
     st.session_state.messages = []
     
     status = st.status("🕵️ Agentic Workflow Started...", expanded=True)
@@ -490,10 +533,16 @@ if start_btn:
             st.stop()
             
         st.session_state.product_name = identified_name
+        
         # Research
         status.write(f"🌍 **Researcher:** Scouring web for '{identified_name}' & alternatives...")
         data = run_research(identified_name)
         st.session_state.research_data = data
+        
+        # [MODIFICATION: Extract Sales Data for Chart]
+        status.write("📈 **Data Analyst:** extracting sales/market data...")
+        chart_json = get_market_data_json(identified_name, data)
+        st.session_state.market_chart_data = chart_json
         
         # Report
         status.write("📊 **Editor:** Compiling Product Report...")
@@ -524,12 +573,30 @@ if st.session_state.general_report:
                 with st.spinner(f"Correction: Analyzing {new_name}..."):
                     data = run_research(new_name)
                     st.session_state.research_data = data
+                    # Update Chart
+                    chart_json = get_market_data_json(new_name, data)
+                    st.session_state.market_chart_data = chart_json
+                    # Update Report
                     report = generate_report(new_name, data)
                     st.session_state.general_report = report
                 st.rerun()
 
     if "image_obj" in st.session_state:
         st.image(st.session_state.image_obj, width=150)
+
+    # [MODIFICATION: Display Sales Chart]
+    if st.session_state.market_chart_data and st.session_state.market_chart_data.get("data"):
+        st.markdown(f"### 📊 {st.session_state.market_chart_data.get('chart_title', 'Market Comparison')}")
+        chart_data = st.session_state.market_chart_data["data"]
+        # Convert dict to DataFrame for Streamlit Chart
+        try:
+            df_chart = pd.DataFrame(list(chart_data.items()), columns=["Product", "Metric"])
+            st.bar_chart(df_chart.set_index("Product"))
+            st.caption("Data Source: Extracted from public search records (Shipments, Sales, or Review Counts).")
+        except Exception as e:
+            st.warning("Could not render market chart.")
+    else:
+        st.info("ℹ️ No specific sales figures or review counts found publicly for comparison.")
 
     # Report Display
     st.markdown(st.session_state.general_report)
