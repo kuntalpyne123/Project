@@ -5,6 +5,7 @@ import io
 import json
 import re
 import pandas as pd
+import altair as alt  # NEW: For better charts
 from datetime import datetime
 from PIL import Image
 from streamlit.web.server.websocket_headers import _get_websocket_headers
@@ -28,7 +29,7 @@ try:
 except ImportError:
     pass
 
-# --- DATABASE IMPORTS (NEW: GOOGLE SHEETS) ---
+# --- DATABASE IMPORTS ---
 try:
     import gspread
     from oauth2client.service_account import ServiceAccountCredentials
@@ -138,7 +139,7 @@ st.markdown("""
 
 if "research_data" not in st.session_state: st.session_state.research_data = None
 if "general_report" not in st.session_state: st.session_state.general_report = None
-if "market_chart_data" not in st.session_state: st.session_state.market_chart_data = None
+if "chart_data" not in st.session_state: st.session_state.chart_data = None # Renamed to handle both charts
 if "messages" not in st.session_state: st.session_state.messages = []
 if "product_name" not in st.session_state: st.session_state.product_name = ""
 
@@ -172,9 +173,7 @@ with st.sidebar:
         else:
             api_key = st.text_input("Enter Gemini API Key", type="password")
         
-        # [MODIFICATION: RESTRICT GEMINI MODELS]
         if using_free_key:
-            # Strictly restricting to 2.5 Flash and 3 Flash Preview
             gemini_options = ("2.5 Flash", "3 Flash Preview")
         else:
             gemini_options = ("2.5 Flash", "2.5 Pro", "3 Flash (Latest)", "3 Pro (Most Powerful)")
@@ -197,7 +196,6 @@ with st.sidebar:
         st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter Anthropic API Key", type="password")
         
-        # Mapping Display Name -> Model ID
         anthropic_models = {
             "Sonnet 4.5": "claude-sonnet-4-5-20250929",
             "Haiku 4.5": "claude-haiku-4-5-20251001",
@@ -231,6 +229,7 @@ def call_llm(system_instruction, user_prompt, use_search=False, search_query=Non
     # --- GEMINI ---
     if provider == "Google Gemini":
         tools = [Tool(google_search=GoogleSearch())] if use_search else None
+        # KEEPING TEMP AT 0.1 for Reliability
         config = GenerateContentConfig(tools=tools, system_instruction=system_instruction, temperature=0.1)
         contents = [user_prompt]
         if image_data: contents.append(image_data)
@@ -292,31 +291,20 @@ RULE: DO NOT SUMMARIZE. I need specific numbers, quotes, and technical details.
 MANDATORY INTELLIGENCE GATHERING:
 1.  **Pricing Forensics:**
     - What is the official MSRP?
-    - What is the current "Street Price" on Amazon/BestBuy/Resale sites?
-    - Has it hit an all-time low recently? (Give the price).
+    - What is the current "Street Price"?
 
-2.  **The "Hidden" Reality (Negative Bias Search):**
-    - Search Reddit/Forums for "failed after X months".
-    - identifying recurring defects (e.g., "hinge crack," "battery drain," "stitching issues").
-    - Are there subscription walls or expensive accessories required?
+2.  **Broader Market Context (CRITICAL):**
+    - Do NOT just look at Samsung and Apple.
+    - Identify the top 5 players in this specific category (e.g., Pixel, Xiaomi, OnePlus if phones; Sony, Bose if audio).
+    - Find specific SALES VOLUMES, SHIPMENT NUMBERS, or MARKET SHARE percentages for 2024/2025.
 
-3.  **Competitive Landscape (Specifics Required):**
-    - Identify exactly 3 rivals:
-      A. Direct Rival (Same Price).
-      B. Budget Killer (Cheaper).
-      C. The "Dream" Upgrade (More expensive).
-    - For EACH rival, find: Name, Price, Main Advantage over {product_name}, and Main Weakness.
+3.  **Competitive Landscape:**
+    - Identify 3 specific rivals.
+    - Find the "Number of Reviews" on major platforms for all of them.
 
-4.  **Technical Deep Dive:**
-    - Weight, Dimensions, Battery Life (Real-world vs Claimed), Materials used.
-
-5.  **Social Sentiment:**
-    - What do the 1-star reviews say?
-    - What do the 5-star reviews say?
-
-6.  **Market Data (CRITICAL FOR CHARTING):**
-    - Search for specific SALES FIGURES, SHIPMENT VOLUMES, or MARKET SHARE percentages for this product and its competitors.
-    - If exact sales are not public, find the "Number of Reviews" on major platforms (Amazon/Google Shopping) to use as a proxy for popularity.
+4.  **Technical Deep Dive & Feature Scoring:**
+    - Look for reviews discussing: Camera, Battery, Performance, and Value.
+    - Note the general sentiment (e.g., "Camera is better than iPhone but video is worse").
 
 OUTPUT: A dense, detailed, unformatted text file with all these facts.
 """
@@ -326,51 +314,63 @@ def run_research(product_name):
     prompt = f"""
     CONDUCT A DEEP-DIVE INVESTIGATION ON: {product_name}
     
-    1. SCOUR the web for "Reddit {product_name} issues", "long term review", and "{product_name} vs competitors".
-    2. FIND precise pricing data.
-    3. FIND sales figures, market share percentages, or total shipment numbers for {product_name} and its competitors.
-    4. FILL the Competitor Matrix with 3 specific rivals.
+    1. FIND precise pricing data.
+    2. [IMPORTANT] FIND GLOBAL SALES DATA or MARKET SHARE DATA for {product_name} and at least 4-5 competitors (e.g. Xiaomi, Oppo, Vivo, Google, etc).
+    3. If sales data is missing, find "Total Review Counts" on Amazon/BestBuy as a popularity proxy.
+    4. Collect sentiment data on: Camera, Battery, Performance, Value.
     
     Provide the RAW DATA now.
     """
-    # [MODIFICATION: Added sales/market share terms to query]
-    search_query = f"{product_name} detailed specs price history vs competitors reliability reddit issues sales figures market share shipments"
+    # Updated query to be broader
+    search_query = f"{product_name} sales volume market share 2024 2025 vs competitors shipments statistics top 5 brands market analysis"
     return call_llm(instruction, prompt, use_search=True, search_query=search_query)
 
-# --- DATA ANALYST AGENT (NEW) ---
-def get_market_data_json(product_name, research_data):
-    """Parses text to extract numbers for the visual chart."""
-    instruction = "You are a Data Analyst. Convert unstructured text into strict JSON for graphing."
+# --- DATA ANALYST AGENT (MODIFIED FOR 2 CHARTS) ---
+def analyze_data_for_charts(product_name, research_data):
+    """Parses text to extract numbers for TWO distinct charts."""
+    instruction = "You are a Data Analyst. Convert unstructured text into strict JSON."
     prompt = f"""
     Analyze the following research data for {product_name}:
     {research_data}
 
-    TASK:
-    Extract comparable numerical metrics for {product_name} and its competitors to build a Bar Chart.
-    
-    PRIORITY OF METRICS (Choose ONE that has data for most items):
-    1. Sales Volume / Shipments (e.g. "10 million units")
-    2. Global Market Share % (e.g. "25%")
-    3. Number of User Reviews (e.g. "Amazon: 5,000 reviews") - Use this as a proxy for popularity if sales are hidden.
+    TASK: Create JSON data for two separate charts.
+
+    --- CHART 1: MARKET PRESENCE (Vertical Bar Chart) ---
+    Rules for 'market_stats':
+    1.  **PRIORITY ORDER (Strict):**
+        - Choice A: Sales Volume / Shipments (Best)
+        - Choice B: Global Market Share % (If A is missing)
+        - Choice C: Total User Reviews Count (Fallback only)
+    2.  **Breadth:** Include {product_name} AND at least 3-4 other major competitors found in the text (e.g., Xiaomi, Pixel, etc.). Do NOT limit to just 2 unless absolutely no other data exists.
+    3.  **Label:** "metric_name" should describe what you found (e.g., "Annual Shipments (Millions)").
+
+    --- CHART 2: FEATURE SCORECARD (Horizontal Grouped Bar Chart) ---
+    Rules for 'feature_scores':
+    1.  Based on the sentiment in the text, assign a score from 1 (Poor) to 5 (Excellent).
+    2.  Categories: "Camera", "Battery", "Performance", "Value".
+    3.  Include {product_name} and the top 2-3 competitors.
 
     OUTPUT FORMAT (STRICT JSON):
     {{
-        "chart_title": "Metric Name (e.g. Estimated Annual Shipments in Millions)",
-        "data": {{
-            "{product_name}": 10.5,
-            "Competitor A": 8.2,
-            "Competitor B": 15.0
-        }}
+        "market_stats": {{
+            "metric_name": "Global Market Share 2024 (%)",
+            "data": {{
+                "{product_name}": 20,
+                "Competitor A": 18,
+                "Competitor B": 12,
+                "Competitor C": 8
+            }}
+        }},
+        "feature_scores": [
+            {{"product": "{product_name}", "category": "Camera", "score": 5}},
+            {{"product": "{product_name}", "category": "Battery", "score": 4}},
+            {{"product": "Competitor A", "category": "Camera", "score": 4}},
+            {{"product": "Competitor A", "category": "Battery", "score": 5}}
+            // ... repeat for others
+        ]
     }}
-
-    RULES:
-    1. Use ONLY numbers found in the text. DO NOT HALLUCINATE data.
-    2. If no data is found, return {{ "data": {{}} }}.
-    3. Ensure keys in "data" are short Product Names.
     """
     response = call_llm(instruction, prompt, use_search=False)
-    
-    # Simple cleaner to handle markdown code blocks
     try:
         clean_json = response.replace("```json", "").replace("```", "").strip()
         return json.loads(clean_json)
@@ -379,53 +379,52 @@ def get_market_data_json(product_name, research_data):
 
 # --- EDITOR AGENT ---
 EDITOR_INSTRUCTION = """
-ROLE: Lead Reviews Editor at a Top Tech Publication (e.g., The Verge, Wirecutter).
-TONE: Authoritative, Professional, Nuanced, and Comprehensive.
+ROLE: Lead Reviews Editor at a Top Tech Publication.
+TONE: Authoritative, Professional, Nuanced.
 GOAL: Write the definitive Buying Guide for {product_name}.
 
 INPUT DATA: Use the Researcher's raw notes.
 
 STRICT WRITING RULES:
-1.  **No "Form Filling":** Do not output "Section 1", "Section 2". Write a flowing article with H2 headers.
+1.  **No "Form Filling":** Write a flowing article with H2 headers.
 2.  **Table Formatting:** The Comparison Matrix must be a properly formatted Markdown table.
-3.  **Ambiguity Logic:** IF (and ONLY IF) the Researcher identified an ambiguity (e.g., "S24 vs S25"), include a specific section clarifying it. If not, SKIP IT.
-4.  **Detail Level:** Do not say "Good battery." Say "The battery lasts approx. 14 hours, which is 2 hours less than the..."
+3.  **Ambiguity Logic:** IF (and ONLY IF) there is ambiguity (e.g., "S24 vs S25"), include a specific section clarifying it.
+4.  **Detail Level:** Be specific (e.g., "14 hours battery", not "Good battery").
 
---- REPORT SKELETON (Use this as a guide, not a checklist) ---
+--- REPORT SKELETON ---
 
 # The Definitive Review: {product_name}
 
 ### 🏆 The Executive Verdict
-(Write a 3-4 sentence distinct paragraph. Is it a buy? Who is it for? Be decisive.)
+(3-4 sentence distinct paragraph. Is it a buy? Who is it for?)
 
 **Quick Ratings:**
-* **Reliability:** (e.g., 4/5 - "Solid build but prone to scratches")
-* **Value:** (e.g., 5/5 - "Unbeatable for the price")
-* **Future Proofing:** (e.g., 3/5 - "Successor rumored in Q4")
+* **Reliability:** (X/5)
+* **Value:** (X/5)
+* **Future Proofing:** (X/5)
 
 ---
 
 ### 📉 Market Analysis & Pricing
-(Discuss the current street price vs MSRP. Is it a good time to buy? Are there fake listings?)
+(Discuss the current street price vs MSRP. Is it a good time to buy?)
 
 ---
 
 ### ⚔️ The Competition Matrix (MANDATORY)
-*Here is how {product_name} stacks up against the market:*
 
 | Product | Price | The "Win" (Pro) | The "Loss" (Con) | Verdict |
 | :--- | :--- | :--- | :--- | :--- |
 | **{product_name}** | $X | ... | ... | ... |
-| **(Budget Rival)** | $Y | ... | ... | ... |
-| **(Direct Rival)** | $Z | ... | ... | ... |
-| **(Premium Rival)** | $A | ... | ... | ... |
+| **(Rival 1)** | $Y | ... | ... | ... |
+| **(Rival 2)** | $Z | ... | ... | ... |
+| **(Rival 3)** | $A | ... | ... | ... |
 
-*(Add a paragraph below the table analyzing these choices deeply).*
+*(Add a paragraph below the table analyzing these choices).*
 
 ---
 
 ### 🕵️ The "Hidden" Truths (Long-Term Ownership)
-(Detail the wear-and-tear issues. Mention the Reddit/Forum complaints found by the researcher. Discuss maintenance costs.)
+(Detail wear-and-tear, Reddit complaints, maintenance costs.)
 
 ---
 
@@ -441,16 +440,16 @@ def generate_report(product_name, research_data):
 
 # --- PERSONALIZER AGENT ---
 PERSONALIZER_INSTRUCTION = """
-ROLE: You are a hyper-personalized Sales Engineer.
-GOAL: Re-evaluate {product_name} specifically for the USER'S PROFILE.
+ROLE: Sales Engineer.
+GOAL: Re-evaluate {product_name} for the USER'S PROFILE.
 
-INSTRUCTIONS FOR OUTPUT:
-1. **Be Detailed & Thoughtful:** Do not be brief. Write a consultation letter (approx 200-300 words).
+INSTRUCTIONS:
+1. **Be Detailed:** Write a consultation letter (200-300 words).
 2. **Structure:**
-   - **"The Fit Check":** Analyze how the product specs specifically match the user's mentioned habits/needs.
-   - **"Day-in-the-Life Simulation":** Describe a specific scenario where this product will help or hinder them based on their profile.
-   - **"The Hard Truth":** If the user is on a budget, warn them about hidden costs. If they are a power user, warn them about limitations.
-   - **"Final Verdict":** A definitive "Buy" or "Skip" tailored to them.
+   - "The Fit Check"
+   - "Day-in-the-Life Simulation"
+   - "The Hard Truth"
+   - "Final Verdict"
 
 OUTPUT: A detailed, empathetic, and logic-driven letter.
 """
@@ -508,7 +507,7 @@ if start_btn:
     
     # Reset
     st.session_state.general_report = None
-    st.session_state.market_chart_data = None
+    st.session_state.chart_data = None
     st.session_state.messages = []
     
     status = st.status("🕵️ Agentic Workflow Started...", expanded=True)
@@ -535,14 +534,14 @@ if start_btn:
         st.session_state.product_name = identified_name
         
         # Research
-        status.write(f"🌍 **Researcher:** Scouring web for '{identified_name}' & alternatives...")
+        status.write(f"🌍 **Researcher:** Scouring web for '{identified_name}' global data...")
         data = run_research(identified_name)
         st.session_state.research_data = data
         
-        # [MODIFICATION: Extract Sales Data for Chart]
-        status.write("📈 **Data Analyst:** extracting sales/market data...")
-        chart_json = get_market_data_json(identified_name, data)
-        st.session_state.market_chart_data = chart_json
+        # [MODIFIED: Extract Dual-Chart Data]
+        status.write("📈 **Data Analyst:** Analyzing market share & feature scores...")
+        chart_json = analyze_data_for_charts(identified_name, data)
+        st.session_state.chart_data = chart_json
         
         # Report
         status.write("📊 **Editor:** Compiling Product Report...")
@@ -574,8 +573,8 @@ if st.session_state.general_report:
                     data = run_research(new_name)
                     st.session_state.research_data = data
                     # Update Chart
-                    chart_json = get_market_data_json(new_name, data)
-                    st.session_state.market_chart_data = chart_json
+                    chart_json = analyze_data_for_charts(new_name, data)
+                    st.session_state.chart_data = chart_json
                     # Update Report
                     report = generate_report(new_name, data)
                     st.session_state.general_report = report
@@ -584,19 +583,56 @@ if st.session_state.general_report:
     if "image_obj" in st.session_state:
         st.image(st.session_state.image_obj, width=150)
 
-    # [MODIFICATION: Display Sales Chart]
-    if st.session_state.market_chart_data and st.session_state.market_chart_data.get("data"):
-        st.markdown(f"### 📊 {st.session_state.market_chart_data.get('chart_title', 'Market Comparison')}")
-        chart_data = st.session_state.market_chart_data["data"]
-        # Convert dict to DataFrame for Streamlit Chart
-        try:
-            df_chart = pd.DataFrame(list(chart_data.items()), columns=["Product", "Metric"])
-            st.bar_chart(df_chart.set_index("Product"))
+    # --- NEW VISUALIZATION SECTION ---
+    if st.session_state.chart_data:
+        
+        # 1. MARKET CHART
+        m_stats = st.session_state.chart_data.get("market_stats", {})
+        if m_stats and m_stats.get("data"):
+            st.markdown(f"### 📊 {m_stats.get('metric_name', 'Market Comparison')}")
+            
+            # Prepare Data
+            chart_dict = m_stats["data"]
+            df_market = pd.DataFrame(list(chart_dict.items()), columns=["Brand", "Value"])
+            
+            # Altair Vertical Bar Chart
+            base = alt.Chart(df_market).encode(
+                x=alt.X('Brand', sort='-y', axis=alt.Axis(title="Brand/Product", labelAngle=-45)),
+                y=alt.Y('Value', axis=alt.Axis(title=m_stats.get('metric_name', 'Value'))),
+                tooltip=['Brand', 'Value']
+            )
+            bar = base.mark_bar().encode(
+                color=alt.Color('Brand', legend=None) # Different colors for each bar
+            )
+            # Add text labels on top of bars
+            text = base.mark_text(dy=-10, color='black').encode(text='Value')
+            
+            st.altair_chart((bar + text).properties(height=300), use_container_width=True)
             st.caption("Data Source: Extracted from public search records (Shipments, Sales, or Review Counts).")
-        except Exception as e:
-            st.warning("Could not render market chart.")
-    else:
-        st.info("ℹ️ No specific sales figures or review counts found publicly for comparison.")
+        else:
+            st.info("ℹ️ No specific sales figures or review counts found publicly for comparison.")
+
+        st.divider()
+
+        # 2. FEATURE SCORE CHART
+        f_scores = st.session_state.chart_data.get("feature_scores", [])
+        if f_scores:
+            st.markdown("### 🏆 Feature Face-Off (1-5 Score)")
+            df_scores = pd.DataFrame(f_scores)
+            
+            # Altair Horizontal Grouped Bar Chart
+            chart_features = alt.Chart(df_scores).mark_bar().encode(
+                y=alt.Y('category', title=None),
+                x=alt.X('score', title='Score (1-5)', scale=alt.Scale(domain=[0, 5])),
+                color=alt.Color('product', title='Product', legend=alt.Legend(orient='top')),
+                yOffset='product', # This creates the grouping effect
+                tooltip=['product', 'category', 'score']
+            ).properties(
+                height=250 # Adjust height based on categories
+            )
+            
+            st.altair_chart(chart_features, use_container_width=True)
+            st.caption("Scores derived from sentiment analysis of technical reviews.")
 
     # Report Display
     st.markdown(st.session_state.general_report)
