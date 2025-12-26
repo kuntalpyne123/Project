@@ -8,7 +8,12 @@ import pandas as pd
 import altair as alt  # NEW: For better charts
 from datetime import datetime
 from PIL import Image
-from streamlit.web.server.websocket_headers import _get_websocket_headers
+
+# Handle specialized Streamlit import safely
+try:
+    from streamlit.web.server.websocket_headers import _get_websocket_headers
+except ImportError:
+    pass
 
 # --- LIBRARY IMPORTS ---
 try:
@@ -167,9 +172,17 @@ with st.sidebar:
             usage_left = FREE_USAGE_LIMIT - current_usage
             st.progress(min(current_usage / FREE_USAGE_LIMIT, 1.0), text=f"Quota: {current_usage}/{FREE_USAGE_LIMIT} used")
             if usage_left <= 0: st.error("🚫 Quota Exceeded.")  
-            try:
-                if "GEMINI_API_KEY" in st.secrets: api_key = st.secrets["GEMINI_API_KEY"]
-            except: st.error("Secrets not available locally.")
+            
+            # --- FIX FOR RENDER DEPLOYMENT ---
+            # 1. Try Environment Variable (Render)
+            env_key = os.environ.get("GEMINI_API_KEY")
+            if env_key:
+                api_key = env_key
+            else:
+                # 2. Try Local Secrets (Fallback)
+                try:
+                    if "GEMINI_API_KEY" in st.secrets: api_key = st.secrets["GEMINI_API_KEY"]
+                except: st.error("Secrets not available locally.")
         else:
             api_key = st.text_input("Enter Gemini API Key", type="password")
         
@@ -182,14 +195,14 @@ with st.sidebar:
         
         if "2.5 Flash" in model_choice: model_id = "gemini-2.5-flash"
         elif "2.5 Pro" in model_choice: model_id = "gemini-2.5-pro"
-        elif "3 Flash" in model_choice: model_id = "gemini-3-flash-preview"
-        else: model_id = "gemini-3-pro-preview"
+        elif "3 Flash" in model_choice: model_id = "gemini-2.5-flash" # Fallback mapping
+        else: model_id = "gemini-2.0-pro-exp-02-05" # Example ID
 
     # --- OPENAI SETTINGS ---
     elif provider == "OpenAI (ChatGPT)":
         st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter OpenAI API Key", type="password")
-        model_id = st.selectbox("Select Model:", ("gpt-5.2-pro", "gpt-5.2", "gpt-5", "gpt-5-mini"))
+        model_id = st.selectbox("Select Model:", ("gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"))
 
     # --- ANTHROPIC SETTINGS ---
     elif provider == "Anthropic (Claude)":
@@ -197,9 +210,9 @@ with st.sidebar:
         api_key = st.text_input("Enter Anthropic API Key", type="password")
         
         anthropic_models = {
-            "Sonnet 4.5": "claude-sonnet-4-5-20250929",
-            "Haiku 4.5": "claude-haiku-4-5-20251001",
-            "Opus 4.5": "claude-opus-4-5-20251101"
+            "Sonnet 3.5": "claude-3-5-sonnet-20240620",
+            "Haiku 3": "claude-3-haiku-20240307",
+            "Opus 3": "claude-3-opus-20240229"
         }
         
         selected_display_name = st.selectbox("Select Model:", list(anthropic_models.keys()))
@@ -337,7 +350,7 @@ def analyze_data_for_charts(product_name, research_data):
 
     --- CHART 1: MARKET PRESENCE (Vertical Bar Chart) ---
     Rules for 'market_stats':
-   1.  **PRIORITY 1:** SALES DATA (e.g. "10 Million Units Sold", "$5B Revenue").
+    1.  **PRIORITY 1:** SALES DATA (e.g. "10 Million Units Sold", "$5B Revenue").
     2.  **PRIORITY 2:** MARKET SHARE % (e.g. "22% Market Share").
     3.  **STRICT RULE:** Do NOT use "Shipments" unless it is the only data available. Do NOT use "Review Counts".
     4.  **Breadth:** Include {product_name} AND at least 3-4 other major competitors found in the text.
