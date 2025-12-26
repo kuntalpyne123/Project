@@ -42,12 +42,19 @@ except ImportError:
 FREE_USAGE_LIMIT = 5
 SHEET_NAME = "user_quotas"
 
-def get_remote_ip():
+ef get_remote_ip():
+    """Returns the client IP address using the new Streamlit Context API."""
     try:
-        headers = _get_websocket_headers()
-        if headers and "X-Forwarded-For" in headers: return headers["X-Forwarded-For"].split(",")[0]
+        # Check specific headers usually added by cloud hosts (Render, AWS, etc.)
+        if st.context.headers:
+            # X-Forwarded-For is the standard header for client IPs behind proxies
+            if "X-Forwarded-For" in st.context.headers:
+                return st.context.headers["X-Forwarded-For"].split(",")[0]
+        
+        # Fallback if running locally or header not found
         return "LOCALHOST_DEV_MACHINE"
-    except Exception: return "UNKNOWN_CLIENT"
+    except Exception:
+        return "UNKNOWN_CLIENT"
 
 def get_google_sheet_client():
     """Authenticates with Google Sheets using Streamlit Secrets."""
