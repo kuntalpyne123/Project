@@ -4,8 +4,9 @@ pytrends
 gspread
 oauth2client
 duckduckgo_search
-google-generativeai
+google-genai
 openai
 anthropic
 pillow
+
 
