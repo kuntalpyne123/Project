@@ -5,35 +5,25 @@ import io
 import json
 import re
 import pandas as pd
-import altair as alt
+import altair as alt  # NEW: For better charts
 from datetime import datetime
 from PIL import Image
-
-# Handle specialized Streamlit import safely
-try:
-    from streamlit.web.server.websocket_headers import _get_websocket_headers
-except ImportError:
-    pass
+from streamlit.web.server.websocket_headers import _get_websocket_headers
 
 # --- LIBRARY IMPORTS ---
-
-# 1. CRITICAL: Google GenAI 
-# We removed the try/except so you know immediately if this is missing.
-from google import genai
-from google.genai.types import GenerateContentConfig, Tool, GoogleSearch
-
-# 2. OPTIONAL: Other Providers
-# These can remain optional if you don't always use them.
+try:
+    from google import genai
+    from google.genai.types import GenerateContentConfig, Tool, GoogleSearch
+except ImportError:
+    pass
 try:
     import openai
 except ImportError:
     pass
-
 try:
     import anthropic
 except ImportError:
     pass
-
 try:
     from duckduckgo_search import DDGS
 except ImportError:
@@ -165,61 +155,24 @@ with st.sidebar:
     using_free_key = False 
     
     # --- GOOGLE GEMINI SETTINGS ---
-   # 1. GOOGLE GEMINI CONFIG
     if provider == "Google Gemini":
         st.info("⚡ Native Search Grounding (Most Accurate)")
-        
-        # --- NEW: Radio selection for key source ---
-        key_source = st.radio(
-            "API Key Source:", 
-            ("Use Free Default Key", "Custom Key to access GEMINI PRO models")
-        )
+        key_source = st.radio("API Key Source:", ("Use Free Default Key", "Custom Key to access GEMINI PRO models"))
         
         if key_source == "Use Free Default Key":
             using_free_key = True 
-            
-            # --- PRESERVED: Your Custom Quota Logic ---
-            # (Assuming get_remote_ip and get_usage_count are defined elsewhere in your code)
+            user_ip = get_remote_ip()
+            current_usage = get_usage_count(user_ip)
+            st.caption(f"🔒 ID: ...{user_ip[-4:] if len(user_ip)>4 else user_ip}") 
+            usage_left = FREE_USAGE_LIMIT - current_usage
+            st.progress(min(current_usage / FREE_USAGE_LIMIT, 1.0), text=f"Quota: {current_usage}/{FREE_USAGE_LIMIT} used")
+            if usage_left <= 0: st.error("🚫 Quota Exceeded.")  
             try:
-                user_ip = get_remote_ip()
-                current_usage = get_usage_count(user_ip)
-                st.caption(f"🔒 ID: ...{user_ip[-4:] if len(user_ip)>4 else user_ip}") 
-                usage_left = FREE_USAGE_LIMIT - current_usage
-                st.progress(min(current_usage / FREE_USAGE_LIMIT, 1.0), text=f"Quota: {current_usage}/{FREE_USAGE_LIMIT} used")
-                
-                if usage_left <= 0: 
-                    st.error("🚫 Quota Exceeded.")
-            except NameError:
-                # Fallback if you haven't defined these functions yet
-                st.warning("⚠️ Usage tracking functions not found. Quota system skipped.")
-
-            # --- UPDATED: Robust Key Loading (Render + Local) ---
-            system_key = None
-            
-            # 1. Try Render/Docker Environment Variable first
-            if "GEMINI_API_KEY" in os.environ:
-                system_key = os.environ["GEMINI_API_KEY"]
-            
-            # 2. Try Local Secrets (Wrapped in try/except to prevent crashes)
-            if not system_key:
-                try:
-                    # accessing st.secrets triggers the error if file is missing, so we wrap it
-                    if "GEMINI_API_KEY" in st.secrets:
-                        system_key = st.secrets["GEMINI_API_KEY"]
-                except (FileNotFoundError, Exception):
-                    pass 
-
-            # 3. Assign key or show error
-            if system_key:
-                api_key = system_key
-            else:
-                st.error("🚨 Configuration Error: No Default API Key found in Environment or Secrets.")
-
+                if "GEMINI_API_KEY" in st.secrets: api_key = st.secrets["GEMINI_API_KEY"]
+            except: st.error("Secrets not available locally.")
         else:
-            # Custom Key Input
             api_key = st.text_input("Enter Gemini API Key", type="password")
         
-        # --- Model Selection Logic ---
         if using_free_key:
             gemini_options = ("2.5 Flash", "3 Flash Preview")
         else:
@@ -229,8 +182,8 @@ with st.sidebar:
         
         if "2.5 Flash" in model_choice: model_id = "gemini-2.5-flash"
         elif "2.5 Pro" in model_choice: model_id = "gemini-2.5-pro"
-        elif "3 Flash" in model_choice: model_id = "gemini-3-flash-preview" # fallback or use actual 3 ID
-        else: model_id = "gemini-3-pro-preview" # Example ID, update as needed
+        elif "3 Flash" in model_choice: model_id = "gemini-3-flash-preview"
+        else: model_id = "gemini-3-pro-preview"
 
     # --- OPENAI SETTINGS ---
     elif provider == "OpenAI (ChatGPT)":
