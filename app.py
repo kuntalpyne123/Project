@@ -9,11 +9,6 @@ import altair as alt  # NEW: For better charts
 from datetime import datetime
 from PIL import Image
 
-# Handle specialized Streamlit import safely
-try:
-    from streamlit.web.server.websocket_headers import _get_websocket_headers
-except ImportError:
-    pass
 
 # --- LIBRARY IMPORTS ---
 try:
