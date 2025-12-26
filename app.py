@@ -42,7 +42,7 @@ except ImportError:
 FREE_USAGE_LIMIT = 5
 SHEET_NAME = "user_quotas"
 
-ef get_remote_ip():
+def get_remote_ip():
     """Returns the client IP address using the new Streamlit Context API."""
     try:
         # Check specific headers usually added by cloud hosts (Render, AWS, etc.)
