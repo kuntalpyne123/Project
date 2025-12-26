@@ -229,6 +229,21 @@ with st.sidebar:
 # ===========================
 # 4. UTILS
 # ===========================
+def hide_streamlit_brand():
+    hide_st_style = """
+        <style>
+        /* Hides the 'Made with Streamlit' footer */
+        footer {visibility: hidden;}
+        
+        /* Hides the 'Manage App' button (if present) */
+        .stDeployButton {display:none;}
+        
+        /* OPTIONAL: Hides the top right hamburger menu */
+        /* #MainMenu {visibility: hidden;} */
+        </style>
+        """
+    st.markdown(hide_st_style, unsafe_allow_html=True)
+    
 def search_web_duckduckgo(query, max_results=5):
     try:
         results = DDGS().text(query, max_results=max_results)
