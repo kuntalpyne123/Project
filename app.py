@@ -5,25 +5,35 @@ import io
 import json
 import re
 import pandas as pd
-import altair as alt  # NEW: For better charts
+import altair as alt
 from datetime import datetime
 from PIL import Image
-from streamlit.web.server.websocket_headers import _get_websocket_headers
 
-# --- LIBRARY IMPORTS ---
+# Handle specialized Streamlit import safely
 try:
-    from google import genai
-    from google.genai.types import GenerateContentConfig, Tool, GoogleSearch
+    from streamlit.web.server.websocket_headers import _get_websocket_headers
 except ImportError:
     pass
+
+# --- LIBRARY IMPORTS ---
+
+# 1. CRITICAL: Google GenAI 
+# We removed the try/except so you know immediately if this is missing.
+from google import genai
+from google.genai.types import GenerateContentConfig, Tool, GoogleSearch
+
+# 2. OPTIONAL: Other Providers
+# These can remain optional if you don't always use them.
 try:
     import openai
 except ImportError:
     pass
+
 try:
     import anthropic
 except ImportError:
     pass
+
 try:
     from duckduckgo_search import DDGS
 except ImportError:
