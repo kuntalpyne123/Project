@@ -198,13 +198,13 @@ with st.sidebar:
         if "2.5 Flash" in model_choice: model_id = "gemini-2.5-flash"
         elif "2.5 Pro" in model_choice: model_id = "gemini-2.5-pro"
         elif "3 Flash" in model_choice: model_id = "gemini-2.5-flash" # Fallback mapping
-        else: model_id = "gemini-2.0-pro-exp-02-05" # Example ID
+        else: model_id = "gemini-3.0-pro-preview" # Example ID
 
     # --- OPENAI SETTINGS ---
     elif provider == "OpenAI (ChatGPT)":
         st.info("🌐 Web Search enabled via DuckDuckGo")
         api_key = st.text_input("Enter OpenAI API Key", type="password")
-        model_id = st.selectbox("Select Model:", ("gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"))
+        model_id = st.selectbox("Select Model:", ("gpt-5.2-pro","gpt-5.2", "gpt-5-mini", "gpt-5"))
 
     # --- ANTHROPIC SETTINGS ---
     elif provider == "Anthropic (Claude)":
@@ -212,9 +212,9 @@ with st.sidebar:
         api_key = st.text_input("Enter Anthropic API Key", type="password")
         
         anthropic_models = {
-            "Sonnet 3.5": "claude-3-5-sonnet-20240620",
-            "Haiku 3": "claude-3-haiku-20240307",
-            "Opus 3": "claude-3-opus-20240229"
+            "Sonnet 3.5": "claude-sonnet-4-5-20250929",
+            "Haiku 3": "claude-haiku-4-5-20251001",
+            "Opus 3": "claude-opus-4-5-20251101"
         }
         
         selected_display_name = st.selectbox("Select Model:", list(anthropic_models.keys()))
