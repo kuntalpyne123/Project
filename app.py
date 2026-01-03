@@ -212,9 +212,9 @@ with st.sidebar:
         api_key = st.text_input("Enter Anthropic API Key", type="password")
         
         anthropic_models = {
-            "Sonnet 3.5": "claude-sonnet-4-5-20250929",
-            "Haiku 3": "claude-haiku-4-5-20251001",
-            "Opus 3": "claude-opus-4-5-20251101"
+            "Sonnet 4.5": "claude-sonnet-4-5-20250929",
+            "Haiku 4.5": "claude-haiku-4-5-20251001",
+            "Opus 4.5": "claude-opus-4-5-20251101"
         }
         
         selected_display_name = st.selectbox("Select Model:", list(anthropic_models.keys()))
