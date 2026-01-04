@@ -333,7 +333,7 @@ MANDATORY INTELLIGENCE GATHERING:
     - Find the "Number of Reviews" on major platforms for all of them.
 
 4.  **Technical Deep Dive & Feature Scoring:**
-    - Look for reviews discussing: Camera, Battery, Performance, and Value.
+    - Look for reviews discussing key technical aspects relevant to this product type.
     - Note the general sentiment (e.g., "Camera is better than iPhone but video is worse").
 
 OUTPUT: A dense, detailed, unformatted text file with all these facts.
@@ -347,7 +347,7 @@ def run_research(product_name):
     1. FIND precise pricing data.
     2. [IMPORTANT] FIND GLOBAL SALES DATA or MARKET SHARE DATA for {product_name} and at least 4-5 competitors (e.g. Xiaomi, Oppo, Vivo, Google, etc).
     3. If sales data is missing, find "Total Review Counts" on Amazon/BestBuy as a popularity proxy.
-    4. Collect sentiment data on: Camera, Battery, Performance, Value.
+    4. Collect sentiment data on the most critical technical features for this category.
     
     Provide the RAW DATA now.
     """
@@ -375,9 +375,13 @@ def analyze_data_for_charts(product_name, research_data):
 
     --- CHART 2: FEATURE SCORECARD (Horizontal Grouped Bar Chart) ---
     Rules for 'feature_scores':
-    1.  Based on the sentiment in the text, assign a score from 1 (Poor) to 5 (Excellent).
-    2.  Categories: "Camera", "Battery", "Performance", "Value", "Durability".
-    3.  Include {product_name} and the top 2-3 competitors.
+    1.  **Determine Categories Dynamically:** Identify the top 5 most critical technical criteria for this specific product category.
+        - Example (Car): "Mileage", "Engine", "Safety", "Comfort", "Maintenance".
+        - Example (Phone): "Camera", "Battery", "Performance", "Value", "Durability".
+        - Example (Software): "UI/UX", "Features", "Support", "Pricing", "Integration".
+    2.  **Consistency:** Use the EXACT SAME category names for the main product and all competitors.
+    3.  Based on the sentiment in the text, assign a score from 1 (Poor) to 5 (Excellent).
+    4.  Include {product_name} and the top 2-3 competitors.
 
     OUTPUT FORMAT (STRICT JSON):
     {{
@@ -391,10 +395,10 @@ def analyze_data_for_charts(product_name, research_data):
             }}
         }},
         "feature_scores": [
-            {{"product": "{product_name}", "category": "Camera", "score": 5}},
-            {{"product": "{product_name}", "category": "Battery", "score": 4}},
-            {{"product": "Competitor A", "category": "Camera", "score": 4}},
-            {{"product": "Competitor A", "category": "Battery", "score": 5}}
+            {{"product": "{product_name}", "category": "Dynamic Category 1", "score": 5}},
+            {{"product": "{product_name}", "category": "Dynamic Category 2", "score": 4}},
+            {{"product": "Competitor A", "category": "Dynamic Category 1", "score": 4}},
+            {{"product": "Competitor A", "category": "Dynamic Category 2", "score": 5}}
             // ... repeat for others
         ]
     }}
