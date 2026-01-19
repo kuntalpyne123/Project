@@ -197,8 +197,8 @@ with st.sidebar:
         
         if "2.5 Flash" in model_choice: model_id = "gemini-2.5-flash"
         elif "2.5 Pro" in model_choice: model_id = "gemini-2.5-pro"
-        elif "3 Flash" in model_choice: model_id = "gemini-2.5-flash" # Fallback mapping
-        else: model_id = "gemini-3.0-pro-preview" # Example ID
+        elif "3 Flash" in model_choice: model_id = "gemini-3-flash-preview" 
+        else: model_id = "gemini-3-pro-preview" 
 
     # --- OPENAI SETTINGS ---
     elif provider == "OpenAI (ChatGPT)":
